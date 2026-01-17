@@ -204,20 +204,30 @@
 }
 #ton-connect button:active{transform:translateY(1px)}
 
+.tonFloat{
+  position:fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  right: calc(env(safe-area-inset-right, 0px) + 10px);
+  z-index: 9999;
+  pointer-events: auto;
+}
+/* If inside Telegram header overlaps, nudge down slightly on very small heights */
+@media (max-height: 700px){
+  .tonFloat{ top: calc(env(safe-area-inset-top, 0px) + 16px); }
+}
+
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="ui">
+    <div class="tonFloat" id="ton-float"><div id="ton-connect"></div></div>
     <div class="hud">
       <div class="pill">
         <span><b>СЧЁТ</b> <span id="score">0</span></span>
         
       </div>
-      <div class="hudRight">
-        <div id="ton-connect"></div>
-        <button class="btn" id="btnNew">Новая</button>
-      </div>
+      <button class="btn" id="btnNew">Новая</button>
     </div>
 
     <div class="combo" id="combo"><span class="word">Combo</span><span class="num" id="comboNum">2</span></div>
