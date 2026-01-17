@@ -173,6 +173,37 @@
       text-shadow:0 10px 22px rgba(0,0,0,.55);
       pointer-events:none;
     }
+  .hudRight{
+  pointer-events:auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+/* TonConnect UI button styling overrides (keeps their structure but matches neon UI) */
+#ton-connect{
+  pointer-events:auto;
+}
+#ton-connect button,
+#ton-connect .tc-button,
+#ton-connect .ton-connect-button{
+  border:0;
+  cursor:pointer;
+  user-select:none;
+  font-weight:950;
+  color:var(--txt);
+  padding:10px 12px;
+  border-radius:16px;
+  background:
+    radial-gradient(90% 140% at 20% 20%, rgba(53,242,255,.22), transparent 55%),
+    radial-gradient(90% 140% at 80% 30%, rgba(255,61,242,.22), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.12));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 45px rgba(0,0,0,.35);
+  line-height:1;
+  white-space:nowrap;
+}
+#ton-connect button:active{transform:translateY(1px)}
+
   </style>
 </head>
 <body>
@@ -183,7 +214,10 @@
         <span><b>СЧЁТ</b> <span id="score">0</span></span>
         
       </div>
-      <button class="btn" id="btnNew">Новая</button>
+      <div class="hudRight">
+        <div id="ton-connect"></div>
+        <button class="btn" id="btnNew">Новая</button>
+      </div>
     </div>
 
     <div class="combo" id="combo"><span class="word">Combo</span><span class="num" id="comboNum">2</span></div>
@@ -206,10 +240,32 @@
   </div>
 </div>
 
+<script src="https://unpkg.com/@tonconnect/ui@2.3.1/dist/tonconnect-ui.min.js"></script>
 <script>
 (() => {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
+
+// ===== TON Connect (wallet button)
+// Manifest should be hosted at: https://<your-domain>/tonconnect-manifest.json
+// Change the URL below if you use a different domain.
+const tonConnectUI = (window.TON_CONNECT_UI && window.TON_CONNECT_UI.TonConnectUI)
+  ? new window.TON_CONNECT_UI.TonConnectUI({
+      manifestUrl: 'https://tetris-five-wine.vercel.app/tonconnect-manifest.json',
+      buttonRootId: 'ton-connect'
+    })
+  : null;
+
+if(tonConnectUI){
+  tonConnectUI.onStatusChange(wallet => {
+    if(wallet){
+      console.log('[TON] Connected:', wallet.account?.address);
+    }else{
+      console.log('[TON] Disconnected');
+    }
+  });
+}
+
 
   // ===== Game config
   const N = 8;
