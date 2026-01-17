@@ -212,7 +212,7 @@
     }
 
     /* Ghost: don't show empty cells (fix gray/transparent squares) */
-    .dragGhost .pblock.empty{ display:none; }
+    .dragGhost .pblock.empty{ visibility:hidden; }
 
 
 
@@ -290,6 +290,16 @@
       border-radius: 7px;
       box-shadow: inset 0 0 0 1px rgba(0,0,0,.10);
     }
+
+
+    /* Disable decorative pseudo elements (remove dots/marks) */
+    .tile::before, .tile::after,
+    .ptile::before, .ptile::after,
+    .pblock::before, .pblock::after{
+      display:none !important;
+      content:none !important;
+    }
+
 
     .ptile{
       opacity: .48;
