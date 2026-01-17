@@ -318,6 +318,23 @@
       will-change: transform;
       filter: drop-shadow(0 14px 26px rgba(0,0,0,.35));
     }
+
+    /* Drag ghost: crisp block + smaller shadow like in screenshot */
+    .dragGhost .pblock{
+      position: relative;
+      z-index: 1;
+    }
+    .dragGhost .pblock.gblock::after{
+      content:"";
+      position:absolute;
+      inset: 3px;
+      border-radius: 6px;
+      background: rgba(0,0,0,.28);
+      transform: translate(-8px,-8px) scale(0.86);
+      z-index: -1;
+      box-shadow: 0 2px 0 rgba(0,0,0,.12);
+    }
+
     .dragGhost .pieceInner{
       --b: var(--ghostB);
       --g: var(--ghostGap);
@@ -523,14 +540,11 @@
     return { gx, gy, cellRect, rect, gap };
   }
 
-  function snapGhostToCell(gx, gy, grabX, grabY){
-    // place ghost so that its grabbed block aligns with the target cell center.
-    // We don't try to scale ghost to cell size; instead we hide the far offset feel by snapping ghost anchor to cell.
+  function snapGhostToCell(gx, gy){
     const cell = gridEl.children[gy*N + gx];
     const r = cell.getBoundingClientRect();
-    // Put the ghost near the cell (slightly above) so it feels "on board"
     const x = r.left + r.width/2;
-    const y = r.top + r.height/2;
+    const y = r.top + r.height/2 - 22; // a bit higher than finger
     ghostEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
   }
 
@@ -635,7 +649,7 @@
         const key = `${gx-offX},${gy-offY}`;
         const isBlock = set.has(key);
         const b = document.createElement('div');
-        b.className = "pblock" + (isBlock ? "" : " empty");
+        b.className = "pblock" + (isBlock ? (mode === 'ghost' ? " gblock" : "") : " empty");
         if(isBlock){
           b.style.background = p.color;
           if(mode === 'tray'){
@@ -866,10 +880,10 @@
     if(!drag) return;
     const cellInfo = getCellFromClientXY(clientX, clientY);
     if(cellInfo){
-      snapGhostToCell(cellInfo.gx, cellInfo.gy, drag.grabX, drag.grabY);
+      snapGhostToCell(cellInfo.gx, cellInfo.gy);
     } else {
       // follow pointer normally
-      ghostEl.style.transform = `translate(${clientX}px, ${clientY}px)`;
+      ghostEl.style.transform = `translate(${clientX + 18}px, ${clientY - 90}px)`;
     }
   }
 
