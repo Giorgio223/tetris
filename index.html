@@ -160,6 +160,62 @@
     }
 
 
+    .sideBtn{
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+    }
+
+    /* Controls panel */
+    .bottomBar{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      justify-content:center;
+      align-items:center;
+      padding: 10px 8px calc(16px + env(safe-area-inset-bottom));
+    }
+    .ctrl{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:center;
+      align-items:center;
+      width: 100%;
+    }
+    .amtLabel{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      font-weight: 900;
+      font-size: 12px;
+      opacity:.92;
+      text-align:left;
+      min-width: 140px;
+    }
+    .amtLabel input{
+      width: 140px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.14);
+      color:#fff;
+      outline:none;
+      font-weight: 900;
+    }
+    .amtLabel input::placeholder{color: rgba(255,255,255,.55)}
+    .ctrlHint{
+      font-size: 12px;
+      opacity: .8;
+      text-align:center;
+      min-height: 16px;
+    }
+
+    /* Ghost: don't show empty cells (fix gray/transparent squares) */
+    .dragGhost .pblock.empty{ display:none; }
+
+
+
     .boardShell{
       background: rgba(20,30,58,.22);
       padding: 10px;
@@ -419,18 +475,7 @@
           <span class="balanceAddr" id="tonAddr"></span>
           <div class="tonBtn" id="tonconnect-button"></div>
         </div>
-<div class="best" title="Лучший результат">
-          <svg class="crown" viewBox="0 0 64 64" aria-hidden="true">
-            <path d="M10 22l10 10 12-18 12 18 10-10 6 28H4l6-28z" fill="#ffcf3f"/>
-            <path d="M12 46h40v6H12z" fill="#e6b92f"/>
-            <circle cx="20" cy="26" r="4" fill="#ffe37a"/>
-            <circle cx="32" cy="18" r="4" fill="#ffe37a"/>
-            <circle cx="44" cy="26" r="4" fill="#ffe37a"/>
-          </svg>
-          <span id="bestScore">0</span>
-        </div>
-        
-      </div>
+</div>
     </div>
 
     <div class="boardShell">
@@ -441,7 +486,19 @@
     <div class="tray" id="tray"></div>
 
     <div class="bottomBar">
-      <button id="newGameBtnBottom">Новая игра</button>
+      <div class="ctrl">
+        <button id="newGameBtnBottom">Новая игра</button>
+
+        <label class="amtLabel">
+          Сумма (TON)
+          <input id="amountInput" inputmode="decimal" placeholder="0.1" />
+        </label>
+
+        <button id="startRoundBtn">Начать (депозит)</button>
+        <button class="btnSecondary" id="endRoundBtn">Закончить раунд</button>
+        <button class="btnSecondary" id="withdrawBtn">Вывод</button>
+      </div>
+      <div class="ctrlHint" id="ctrlHint"></div>
     </div>
 
 </div>
@@ -466,13 +523,18 @@
   const gridEl = document.getElementById('grid');
   const trayEl = document.getElementById('tray');
   const scoreEl = document.getElementById('score');
-  const bestEl = document.getElementById('bestScore');
   const ghostEl = document.getElementById('ghost');
   const toastEl = document.getElementById('toast');
     const newGameBtn = document.getElementById('newGameBtnBottom');
 
   const tonBalanceEl = document.getElementById('tonBalance');
   const tonAddrEl = document.getElementById('tonAddr');
+
+  const amountInput = document.getElementById('amountInput');
+  const startRoundBtn = document.getElementById('startRoundBtn');
+  const endRoundBtn = document.getElementById('endRoundBtn');
+  const withdrawBtn = document.getElementById('withdrawBtn');
+  const ctrlHint = document.getElementById('ctrlHint');
 
 
   const overlay = document.getElementById('overlay');
@@ -483,10 +545,13 @@
 
   let board = Array.from({length:N}, () => Array(N).fill(null));
   let score = 0;
-  let best = Number(localStorage.getItem('bb_best') || 0);
 
-  let comboStreak = 0;
+    let comboStreak = 0;
   let isGameOver = false;
+
+  // Round accounting
+  let roundDepositNanotons = 0n;
+  let roundStartedAt = null; // ms
 
   const COLORS = ["#ff4d4d","#ffcf3f","#3fe36b","#4d7dff","#c85cff","#ff62d4"];
   const SHAPES = [
@@ -549,14 +614,9 @@
   }
 
 
-  function setScore(v){
+    function setScore(v){
     score = v;
     scoreEl.textContent = String(score);
-    if(score > best){
-      best = score;
-      bestEl.textContent = String(best);
-      localStorage.setItem('bb_best', String(best));
-    }
   }
 
   function showToast(msg){
@@ -565,6 +625,66 @@
     clearTimeout(showToast._t);
     showToast._t = setTimeout(()=>toastEl.classList.remove('show'), 900);
   }
+
+
+  function setHint(msg){
+    ctrlHint.textContent = msg || "";
+  }
+
+  function nowMs(){ return Date.now(); }
+
+  const ROUND_TTL_MS = 60 * 60 * 1000; // 1 hour
+  const ROUND_KEY = "bb_round_v1";
+
+  function saveRound(){
+    try{
+      const data = {
+        v: 1,
+        savedAt: nowMs(),
+        board,
+        tray,
+        score,
+        comboStreak,
+        isGameOver,
+        depositNanotons: roundDepositNanotons.toString(),
+        startedAt: roundStartedAt
+      };
+      localStorage.setItem(ROUND_KEY, JSON.stringify(data));
+    } catch {}
+  }
+
+  function clearSavedRound(){
+    try{ localStorage.removeItem(ROUND_KEY); } catch {}
+  }
+
+  function loadRound(){
+    try{
+      const raw = localStorage.getItem(ROUND_KEY);
+      if(!raw) return false;
+      const data = JSON.parse(raw);
+      if(!data || data.v !== 1) return false;
+      if(!data.savedAt || nowMs() - data.savedAt > ROUND_TTL_MS) return false;
+
+      // restore
+      board = data.board || Array.from({length:N}, () => Array(N).fill(null));
+      tray = data.tray || [randomPiece(), randomPiece(), randomPiece()];
+      score = Number(data.score || 0);
+      comboStreak = Number(data.comboStreak || 0);
+      isGameOver = !!data.isGameOver;
+      roundDepositNanotons = BigInt(data.depositNanotons || "0");
+      roundStartedAt = data.startedAt || null;
+
+      scoreEl.textContent = String(score);
+      renderBoard();
+      renderTray();
+      if(isGameOver) openModal('gameover');
+      setHint("Раунд восстановлен (до 1 часа).");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
 
   function openModal(type){
     // type: 'gameover' | 'confirm'
@@ -623,10 +743,30 @@
     return "p" + Math.random().toString(16).slice(2);
   }
 
-  function randomPiece(){
-    const shape = SHAPES[(Math.random()*SHAPES.length)|0];
+  
+  function difficultyBias(){
+    // Fair difficulty: after 7000 points, slightly increase chance of larger/awkward pieces.
+    // No forced losses, no hidden rigging.
+    if(score < 7000) return 0;
+    if(score < 15000) return 0.15;
+    return 0.25;
+  }
+
+  function randomPieceWithDifficulty(){
+    const bias = difficultyBias();
+    // Split shapes by size
+    const bySize = SHAPES.map(s => ({s, k:s.length}));
+    const small = bySize.filter(o => o.k <= 3).map(o=>o.s);
+    const big = bySize.filter(o => o.k >= 4).map(o=>o.s);
+
+    const pickFrom = (Math.random() < bias && big.length) ? big : SHAPES;
+    const shape = pickFrom[(Math.random()*pickFrom.length)|0];
     const color = COLORS[(Math.random()*COLORS.length)|0];
     return { shape, color, id: cryptoRandomId() };
+  }
+
+  function randomPiece(){
+    return randomPieceWithDifficulty();
   }
 
   function renderPieceInner(p, mode /* tray|ghost */){
@@ -719,6 +859,46 @@
     for(const p of tray){
       if(canPlaceSomewhere(p)) return true;
     }
+
+
+
+  function payoutMultiplierFromScore(s){
+    // User-specified:
+    // 0..10000: each 1000 points = x0.1
+    // 10000..15000: each 1000 = x0.2
+    // 15000..30000: each 1000 = x0.3
+    // Above 30000: keep last tier (x0.3) per 1000.
+    let mult = 0;
+    if(s <= 0) return 0;
+    const a = Math.min(s, 10000);
+    mult += Math.floor(a / 1000) * 0.1;
+
+    if(s > 10000){
+      const b = Math.min(s, 15000) - 10000;
+      mult += Math.floor(b / 1000) * 0.2;
+    }
+    if(s > 15000){
+      const c = Math.min(s, 30000) - 15000;
+      mult += Math.floor(c / 1000) * 0.3;
+    }
+    if(s > 30000){
+      const d = s - 30000;
+      mult += Math.floor(d / 1000) * 0.3;
+    }
+    return Math.round(mult * 1000) / 1000;
+  }
+
+  function nanotonsToTonStr(n){
+    const ton = Number(n) / 1e9;
+    return (Math.floor(ton*1000)/1000).toFixed(3);
+  }
+
+  function tonStrToNanotons(str){
+    const v = Number(String(str).replace(",", "."));
+    if(!Number.isFinite(v) || v <= 0) return 0n;
+    return BigInt(Math.round(v * 1e9));
+  }
+
     return false;
   }
 
@@ -766,7 +946,8 @@
       comboStreak = 0;
     }
 
-    renderBoard();
+        renderBoard();
+    saveRound();
   }
 
   // Preview
@@ -1024,7 +1205,8 @@
         renderTray();
         refillTrayIfNeeded();
         placed = true;
-        maybeGameOver();
+                maybeGameOver();
+        saveRound();
       }
     }
 
@@ -1042,6 +1224,72 @@
     }
     openModal('confirm');
   });
+
+
+  const HOUSE_ADDRESS = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"; // TODO: replace with your TON receiving address
+
+  async function requireWallet(){
+    if(!tonConnectUI || !tonConnectUI.wallet){
+      setHint("Подключи TON кошелёк.");
+      return false;
+    }
+    return true;
+  }
+
+  startRoundBtn.addEventListener('click', async () => {
+    setHint("");
+    if(!(await requireWallet())) return;
+
+    const amt = tonStrToNanotons(amountInput.value || "0");
+    if(amt <= 0n){
+      setHint("Введи сумму депозита (например 0.1).");
+      return;
+    }
+
+    // Start round = user sends TON to your address (user подтверждает в кошельке)
+    try{
+      const tx = {
+        validUntil: Math.floor(Date.now()/1000) + 300,
+        messages: [{ address: HOUSE_ADDRESS, amount: amt.toString() }]
+      };
+      await tonConnectUI.sendTransaction(tx);
+
+      roundDepositNanotons = amt;
+      roundStartedAt = nowMs();
+      saveRound();
+      setHint(`Депозит принят: ${nanotonsToTonStr(amt)} TON. Играем!`);
+    } catch(e){
+      setHint("Депозит отменён или ошибка.");
+    }
+  });
+
+  endRoundBtn.addEventListener('click', async () => {
+    setHint("");
+    if(roundDepositNanotons <= 0n){
+      setHint("Сначала сделай депозит и начни раунд.");
+      return;
+    }
+
+    // Compute payout (UI only). For real payouts you MUST do it on server.
+    const mult = payoutMultiplierFromScore(score);
+    const winNanotons = BigInt(Math.round(Number(roundDepositNanotons) * mult));
+    const net = winNanotons - roundDepositNanotons;
+
+    // Round ends: clear saved round and show result.
+    clearSavedRound();
+    isGameOver = true;
+    openModal('gameover');
+
+    const sign = net >= 0n ? "+" : "-";
+    setHint(`Итог: множитель x${mult}. ${sign}${nanotonsToTonStr(net >= 0n ? net : -net)} TON (расчёт).`);
+
+    // NOTE: real crediting should be performed by backend after verifying score/round.
+  });
+
+  withdrawBtn.addEventListener('click', async () => {
+    setHint("Вывод делается через сервер. Нужен backend, который подписывает транзакции.");
+  });
+
 
   // Modal buttons
   modalPrimary.addEventListener('click', () => {
@@ -1064,10 +1312,13 @@
     board = Array.from({length:N}, () => Array(N).fill(null));
     tray = [randomPiece(), randomPiece(), randomPiece()];
     comboStreak = 0;
+    roundDepositNanotons = 0n;
+    roundStartedAt = null;
     setScore(0);
-    bestEl.textContent = String(best);
     renderBoard();
     renderTray();
+    saveRound();
+    setHint("");
   }
 
   // TON Connect (привязка кошелька) + баланс
@@ -1141,8 +1392,7 @@
   // init
   buildGrid();
   initTonConnect();
-  bestEl.textContent = String(best);
-  newGame();
+  if(!loadRound()) newGame();
 })();
 </script>
 </body>
