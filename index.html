@@ -469,6 +469,7 @@
   <!-- TON Connect UI (vanilla) -->
   <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.3.1/dist/tonconnect-ui.min.js"></script>
 
+  <script src="https://unpkg.com/tonweb@0.0.66/dist/tonweb.js"></script>
 </head>
 <body>
   <div class="wrap">
@@ -1235,20 +1236,109 @@
     openModal('confirm');
   });
 
-
-  const HOUSE_ADDRESS = "EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c"; // TODO: replace with your TON receiving address
-
-  async function requireWallet(){
-    if(!tonConnectUI || !tonConnectUI.wallet){
-      setHint("Подключи TON кошелёк.");
-      return false;
-    }
-    return true;
+  // ===== Backend-integrated TON flow (Vercel API + Upstash) =====
+  async function apiPost(url, data){
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data || {})
+    });
+    return await r.json();
   }
 
+  function requireWalletOrHint(){
+    if(!tonConnectUI || !tonConnectUI.wallet || !tonConnectUI.wallet.account?.address){
+      setHint("Подключи TON кошелёк.");
+      return null;
+    }
+    return tonConnectUI.wallet.account.address;
+  }
+
+  async function upsertUserAndLoadBalance(address){
+    try{ await apiPost("/api/user/upsert", { tonAddress: address }); } catch {}
+    await refreshInternalBalance(address);
+  }
+
+  async function refreshInternalBalance(address){
+    try{
+      const r = await fetch(`/api/balance?address=${encodeURIComponent(address)}`);
+      const j = await r.json();
+      if(j && j.ok){
+        const nano = BigInt(j.balanceNano || "0");
+        const ton = Number(nano) / 1e9;
+        tonBalanceEl.textContent = (Math.floor(ton*1000)/1000).toFixed(3) + " TON";
+        return;
+      }
+    } catch {}
+  }
+
+  async function createCommentPayloadBase64(text){
+    if(!window.TonWeb) return null;
+    const cell = new TonWeb.boc.Cell();
+    cell.bits.writeUint(0, 32);
+    cell.bits.writeString(text);
+    const boc = await cell.toBoc(false);
+    return TonWeb.utils.bytesToBase64(boc);
+  }
+
+  // round state (server)
+  let roundId = null;
+  let roundDepositNanotons = 0n;
+
+  async function loadServerRoundIfAny(address){
+    try{
+      const r = await fetch(`/api/round/get?address=${encodeURIComponent(address)}`);
+      const j = await r.json();
+      if(j && j.ok && j.round && !j.round.ended){
+        roundId = j.round.id;
+        if(j.round.state){
+          const st = j.round.state;
+          board = st.board || board;
+          tray = st.tray || tray;
+          comboStreak = Number(st.comboStreak || 0);
+          isGameOver = !!st.isGameOver;
+          setScore(Number(st.score || 0));
+          renderBoard();
+          renderTray();
+          setHint("Раунд восстановлен (сервер, до 1 часа).");
+        }
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  let saveTimer = null;
+  function scheduleServerSave(){
+    if(!roundId) return;
+    if(saveTimer) return;
+    saveTimer = setTimeout(async () => {
+      saveTimer = null;
+      const addr = requireWalletOrHint();
+      if(!addr) return;
+      try{
+        await apiPost("/api/round/save", {
+          roundId,
+          tonAddress: addr,
+          score,
+          state: { board, tray, comboStreak, isGameOver, score }
+        });
+      } catch {}
+    }, 1200);
+  }
+
+  // Hook into saveRound to also server-save
+  const _saveRoundOrig = saveRound;
+  saveRound = function(){
+    try{ _saveRoundOrig(); } catch {}
+    scheduleServerSave();
+  };
+
+  // Deposit + Start round
   startRoundBtn.addEventListener('click', async () => {
     setHint("");
-    if(!(await requireWallet())) return;
+    const addr = requireWalletOrHint();
+    if(!addr) return;
 
     const amt = tonStrToNanotons(amountInput.value || "0");
     if(amt <= 0n){
@@ -1256,48 +1346,141 @@
       return;
     }
 
-    // Start round = user sends TON to your address (user подтверждает в кошельке)
+    let dep;
     try{
-      const tx = {
-        validUntil: Math.floor(Date.now()/1000) + 300,
-        messages: [{ address: HOUSE_ADDRESS, amount: amt.toString() }]
-      };
-      await tonConnectUI.sendTransaction(tx);
-
-      roundDepositNanotons = amt;
-      roundStartedAt = nowMs();
-      saveRound();
-      setHint(`Депозит принят: ${nanotonsToTonStr(amt)} TON. Играем!`);
-    } catch(e){
-      setHint("Депозит отменён или ошибка.");
+      dep = await apiPost("/api/deposit/create", {
+        tonAddress: addr,
+        amountNano: amt.toString()
+      });
+    } catch {
+      setHint("Сервер депозита недоступен.");
+      return;
     }
-  });
-
-  endRoundBtn.addEventListener('click', async () => {
-    setHint("");
-    if(roundDepositNanotons <= 0n){
-      setHint("Сначала сделай депозит и начни раунд.");
+    if(!dep || !dep.ok || !dep.depositId || !dep.houseAddress){
+      setHint("Ошибка создания депозита.");
       return;
     }
 
-    // Compute payout (UI only). For real payouts you MUST do it on server.
-    const mult = payoutMultiplierFromScore(score);
-    const winNanotons = BigInt(Math.round(Number(roundDepositNanotons) * mult));
-    const net = winNanotons - roundDepositNanotons;
+    const depositId = dep.depositId;
+    const houseAddress = dep.houseAddress;
 
-    // Round ends: clear saved round and show result.
-    clearSavedRound();
-    isGameOver = true;
-    openModal('gameover');
+    const payloadB64 = await createCommentPayloadBase64(depositId);
 
-    const sign = net >= 0n ? "+" : "-";
-    setHint(`Итог: множитель x${mult}. ${sign}${nanotonsToTonStr(net >= 0n ? net : -net)} TON (расчёт).`);
+    try{
+      const tx = {
+        validUntil: Math.floor(Date.now()/1000) + 300,
+        messages: [{
+          address: houseAddress,
+          amount: amt.toString(),
+          ...(payloadB64 ? { payload: payloadB64 } : {})
+        }]
+      };
+      await tonConnectUI.sendTransaction(tx);
+      setHint("Транзакция отправлена. Проверяю депозит…");
+    } catch {
+      setHint("Депозит отменён или ошибка кошелька.");
+      return;
+    }
 
-    // NOTE: real crediting should be performed by backend after verifying score/round.
+    let confirmed = false;
+    for(let i=0;i<10;i++){
+      await new Promise(r=>setTimeout(r, 1800));
+      try{
+        const v = await apiPost("/api/deposit/verify", { depositId });
+        if(v && v.ok && v.status === "confirmed"){
+          confirmed = true;
+          break;
+        }
+      } catch {}
+    }
+    if(!confirmed){
+      setHint("Депозит пока не подтверждён. Попробуй ещё раз через минуту.");
+      return;
+    }
+
+    try{
+      const rr = await apiPost("/api/round/start", { tonAddress: addr });
+      if(rr && rr.ok && rr.roundId){
+        roundId = rr.roundId;
+        roundDepositNanotons = amt;
+        clearSavedRound();
+        newGame();
+        setHint("Депозит подтверждён. Раунд начат!");
+        await upsertUserAndLoadBalance(addr);
+      } else {
+        setHint("Депозит подтверждён, но раунд не стартовал (сервер).");
+      }
+    } catch {
+      setHint("Депозит подтверждён, но ошибка старта раунда.");
+    }
   });
 
+  // End round early: server settles and returns updated balance
+  endRoundBtn.addEventListener('click', async () => {
+    setHint("");
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+    if(!roundId){
+      setHint("Нет активного раунда. Сначала начни (депозит).");
+      return;
+    }
+
+    try{
+      const j = await apiPost("/api/round/end", {
+        tonAddress: addr,
+        score,
+        depositNano: roundDepositNanotons.toString(),
+        roundId
+      });
+      if(j && j.ok){
+        roundId = null;
+        roundDepositNanotons = 0n;
+        isGameOver = true;
+        openModal('gameover');
+
+        await refreshInternalBalance(addr);
+
+        const net = BigInt(j.netNano || "0");
+        const sign = net >= 0n ? "+" : "-";
+        const abs = net >= 0n ? net : -net;
+        setHint(`Раунд завершён. x${j.mult}  ${sign}${nanotonsToTonStr(abs)} TON`);
+        clearSavedRound();
+      } else {
+        setHint("Ошибка завершения раунда.");
+      }
+    } catch {
+      setHint("Сервер недоступен (end).");
+    }
+  });
+
+  // Withdraw request (creates a pending withdraw on backend)
   withdrawBtn.addEventListener('click', async () => {
-    setHint("Вывод делается через сервер. Нужен backend, который подписывает транзакции.");
+    setHint("");
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+
+    const amt = tonStrToNanotons(amountInput.value || "0");
+    if(amt <= 0n){
+      setHint("Введи сумму для вывода.");
+      return;
+    }
+
+    try{
+      const j = await apiPost("/api/withdraw/request", {
+        tonAddress: addr,
+        amountNano: amt.toString()
+      });
+      if(j && j.ok){
+        setHint(`Заявка на вывод: ${j.withdrawId} (pending)`);
+        await refreshInternalBalance(addr);
+      } else {
+        setHint(j?.error === "insufficient_balance" ? "Недостаточно баланса." : "Ошибка вывода.");
+      }
+    } catch {
+      setHint("Сервер недоступен (withdraw).");
+    }
+  });
+
   });
 
 
@@ -1359,14 +1542,14 @@
       if(wallet){
         const addr = wallet.account?.address || "";
         tonAddrEl.textContent = addr ? (addr.slice(0,6) + "…" + addr.slice(-6)) : "";
-        await refreshTonBalance(addr);
+        await upsertUserAndLoadBalance(addr);
+        await loadServerRoundIfAny(addr);
       } else {
         tonAddrEl.textContent = "";
         tonBalanceEl.textContent = "—";
       }
     });
-
-    // initial status
+// initial status
     const w = tonConnectUI.wallet;
     if(w?.account?.address){
       tonAddrEl.textContent = w.account.address.slice(0,6) + "…" + w.account.address.slice(-6);
