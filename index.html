@@ -144,6 +144,23 @@
       overflow:hidden;
     }
 
+    /* Smart highlight (подсветка) */
+    .cell.hintPlace{
+      box-shadow:
+        inset 0 0 0 2px rgba(255,255,255,.22),
+        0 0 0 2px rgba(255,255,255,.06);
+    }
+    .cell.hintLine{
+      box-shadow:
+        inset 0 0 0 2px rgba(255,207,63,.35),
+        0 0 18px rgba(255,207,63,.14);
+      animation: hintPulse .6s ease-in-out infinite alternate;
+    }
+    @keyframes hintPulse{
+      from{ filter: brightness(1); }
+      to{ filter: brightness(1.12); }
+    }
+
     .tile, .ptile{
       position:absolute;
       inset: -2px;
@@ -636,12 +653,89 @@
 
   // Preview
   let previewCells = [];
+  let hintCells = [];
+  let hintLineCells = [];
+
+  function clearHints(){
+    for(const el of hintCells){
+      el.classList.remove('hintPlace');
+    }
+    for(const el of hintLineCells){
+      el.classList.remove('hintLine');
+    }
+    hintCells = [];
+    hintLineCells = [];
+  }
+
   function clearPreview(){
     for(const el of previewCells){
       el.querySelectorAll('.ptile').forEach(n => n.remove());
     }
     previewCells = [];
+    clearHints();
   }
+
+  function predictClearsIfPlaced(shape, ox, oy){
+    // placements set
+    const placeSet = new Set();
+    for(const [dx,dy] of shape){
+      placeSet.add(`${ox+dx},${oy+dy}`);
+    }
+
+    const rows = [];
+    const cols = [];
+
+    // rows
+    for(let y=0;y<N;y++){
+      let full = true;
+      for(let x=0;x<N;x++){
+        if(!board[y][x] && !placeSet.has(`${x},${y}`)){ full = false; break; }
+      }
+      if(full) rows.push(y);
+    }
+    // cols
+    for(let x=0;x<N;x++){
+      let full = true;
+      for(let y=0;y<N;y++){
+        if(!board[y][x] && !placeSet.has(`${x},${y}`)){ full = false; break; }
+      }
+      if(full) cols.push(x);
+    }
+    return { rows, cols, placeSet };
+  }
+
+  function applySmartHighlight(ox, oy, shape, color){
+    // highlight placement cells + potential clears
+    const { rows, cols, placeSet } = predictClearsIfPlaced(shape, ox, oy);
+
+    // placement cells highlight
+    for(const key of placeSet){
+      const [xStr,yStr] = key.split(',');
+      const x = Number(xStr), y = Number(yStr);
+      const cell = gridEl.children[y*N + x];
+      hintCells.push(cell);
+      cell.classList.add('hintPlace');
+    }
+
+    // line hints (rows/cols that would clear)
+    if(rows.length || cols.length){
+      const set = new Set();
+      for(const y of rows){
+        for(let x=0;x<N;x++) set.add(`${x},${y}`);
+      }
+      for(const x of cols){
+        for(let y=0;y<N;y++) set.add(`${x},${y}`);
+      }
+      for(const key of set){
+        const [xStr,yStr] = key.split(',');
+        const x = Number(xStr), y = Number(yStr);
+        const cell = gridEl.children[y*N + x];
+        hintLineCells.push(cell);
+        cell.classList.add('hintLine');
+      }
+    }
+  }
+
   function showPreview(ox, oy, shape, color){
     clearPreview();
     for(const [dx,dy] of shape){
@@ -653,7 +747,9 @@
       p.style.setProperty('--fill', color);
       cell.appendChild(p);
     }
+    applySmartHighlight(ox, oy, shape, color);
   }
+
 
   // Ghost/probe
   function getProbePoint(clientX, clientY){
