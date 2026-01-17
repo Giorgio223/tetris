@@ -297,7 +297,7 @@
 
   // Neon "glass" block
   function neonBlock(px,py,s,base,alpha=1,scale=1){
-    const pad = 3;
+    const pad = 1;
     const w=(s-pad)*scale, h=(s-pad)*scale;
     const x=px+(s-pad-w)/2, y=py+(s-pad-h)/2;
 
@@ -516,7 +516,7 @@
         const px=board.x+x*board.cell;
         const py=board.y+y*board.cell;
         ctx.fillStyle = bg;
-        roundedRect(px+4, py+4, board.cell-8, board.cell-8, 10);
+        roundedRect(px+2, py+2, board.cell-4, board.cell-4, 9);
         ctx.fill();
       }
     }
@@ -527,7 +527,7 @@
       for(let x=0;x<N;x++){
         const col=grid[y][x];
         if(!col) continue;
-        neonBlock(board.x+x*board.cell+3, board.y+y*board.cell+3, board.cell-6, col, 1, 1);
+        neonBlock(board.x+x*board.cell+1, board.y+y*board.cell+1, board.cell-2, col, 1, 1);
       }
     }
   }
@@ -568,18 +568,8 @@
     const ox=cx-w/2, oy=cy-h/2;
     const a=ghost?0.35:1;
 
-    // base glow blob
-    if(!ghost){
-      ctx.save();
-      ctx.globalAlpha = 0.12;
-      ctx.fillStyle = piece.color;
-      roundedRect(ox+12, oy+14, w-24, h-28, 18);
-      ctx.fill();
-      ctx.restore();
-    }
-
     for(const c of piece.cells){
-      neonBlock(ox + c.x*board.cell + 3, oy + c.y*board.cell + 3, board.cell-6, piece.color, a, 1);
+      neonBlock(ox + c.x*board.cell + 1, oy + c.y*board.cell + 1, board.cell-2, piece.color, a, 1);
     }
   }
 
@@ -600,7 +590,7 @@
     if(dragging.valid && dragging.snapX!=null){
       for(const c of dragging.piece.cells){
         const x=dragging.snapX+c.x, y=dragging.snapY+c.y;
-        neonBlock(board.x+x*board.cell+3, board.y+y*board.cell+3, board.cell-6, dragging.piece.color, 0.28, 1);
+        neonBlock(board.x+x*board.cell+1, board.y+y*board.cell+1, board.cell-2, dragging.piece.color, 0.28, 1);
       }
     }
     drawPieceAt(dragging.piece, dragging.px, dragging.py, false);
