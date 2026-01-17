@@ -216,12 +216,132 @@
   .tonFloat{ top: calc(env(safe-area-inset-top, 0px) + 16px); }
 }
 
+.balanceFloat{
+  position:fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: calc(env(safe-area-inset-left, 0px) + 10px);
+  z-index: 9999;
+  pointer-events:auto;
+}
+.balanceBtn{
+  display:flex; align-items:center; gap:8px;
+  border:0; cursor:pointer; user-select:none;
+  padding:10px 12px;
+  border-radius:16px;
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.10));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 18px 45px rgba(0,0,0,.35), 0 0 0 1px rgba(53,242,255,.06) inset;
+  backdrop-filter: blur(6px);
+  color:var(--txt);
+  font-weight:950;
+  line-height:1;
+  white-space:nowrap;
+}
+.balanceBtn:active{transform:translateY(1px)}
+.balLabel{opacity:.85; font-size:13px}
+.balValue{font-size:14px}
+.balPlus{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:18px; height:18px;
+  border-radius:6px;
+  background: rgba(53,242,255,.22);
+  border:1px solid rgba(53,242,255,.35);
+  color:#dffcff;
+  font-weight:1000;
+  font-size:14px;
+  box-shadow: 0 0 14px rgba(53,242,255,.18);
+}
+
+.balOverlay{
+  position:fixed;
+  inset:0;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  background:rgba(0,0,0,.38);
+  backdrop-filter: blur(6px);
+  z-index: 10000;
+  padding:16px;
+  box-sizing:border-box;
+}
+.balOverlay.show{display:flex;}
+.balModal{
+  width:min(420px, 92vw);
+  border-radius:20px;
+  padding:14px;
+  color:var(--txt);
+  background:
+    radial-gradient(90% 140% at 15% 20%, rgba(53,242,255,.16), transparent 55%),
+    radial-gradient(90% 140% at 80% 30%, rgba(255,61,242,.14), transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.20));
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 30px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(53,242,255,.08) inset;
+}
+.balHead{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;}
+.balTitle{font-weight:1000; font-size:18px; letter-spacing:.3px}
+.balClose{
+  border:0; cursor:pointer; user-select:none;
+  padding:8px 10px; border-radius:14px;
+  font-weight:950; color:var(--txt);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.16));
+  border:1px solid rgba(255,255,255,.14);
+}
+.balTabs{display:flex; gap:8px; margin:8px 0 12px;}
+.balTab{
+  flex:1;
+  border:0; cursor:pointer; user-select:none;
+  padding:10px 10px; border-radius:14px;
+  font-weight:950; color:var(--txt);
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+}
+.balTab.active{
+  color:#071022;
+  background: linear-gradient(180deg, rgba(53,242,255,.95), rgba(155,91,255,.85));
+  border:0;
+  box-shadow:0 18px 45px rgba(53,242,255,.20), 0 18px 45px rgba(155,91,255,.14);
+}
+.balBody{padding:2px 2px 6px;}
+.balPane{display:none;}
+.balPane.show{display:block;}
+.balText{margin:6px 0 10px; opacity:.9}
+.balRow{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+.balField{display:flex; flex-direction:column; gap:6px; flex:1; min-width:160px;}
+.balField span{font-size:12px; opacity:.8; font-weight:900; letter-spacing:.2px}
+.balField input{
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(0,0,0,.20);
+  color:var(--txt);
+  outline:none;
+  font-weight:800;
+}
+.balPrimary{
+  width:100%;
+  border:0; cursor:pointer; user-select:none;
+  padding:11px 12px; border-radius:16px;
+  font-weight:1000;
+  color:#071022;
+  background: linear-gradient(180deg, rgba(53,242,255,.95), rgba(155,91,255,.85));
+  box-shadow:0 20px 55px rgba(53,242,255,.22), 0 20px 55px rgba(155,91,255,.16);
+}
+.balNote{margin:10px 0 0; font-size:12px; opacity:.75}
+
   </style>
 </head>
 <body>
 <div class="wrap">
   <div class="ui">
     <div class="tonFloat" id="ton-float"><div id="ton-connect"></div></div>
+    <div class="balanceFloat" id="balance-float">
+      <button class="balanceBtn" id="btnBalance" type="button">
+        <span class="balLabel">Баланс:</span>
+        <span class="balValue" id="balValue">0</span>
+        <span class="balPlus" aria-hidden="true">＋</span>
+      </button>
+    </div>
+
     <div class="hud">
       <div class="pill">
         <span><b>СЧЁТ</b> <span id="score">0</span></span>
@@ -245,8 +365,6 @@
         </div>
       </div>
     </div>
-
-    <div class="hint">Перетаскивай фигуры снизу. Заполняй ряд или колонку — они исчезнут.</div>
   </div>
 </div>
 
@@ -358,6 +476,39 @@ window.addEventListener('resize', ()=>{ layout(); });
   const comboNumEl = document.getElementById('comboNum');
   const over = document.getElementById('over');
   const finalScore = document.getElementById('finalScore');
+
+// ===== Balance UI (mock)
+const btnBalance = document.getElementById('btnBalance');
+const balOverlay = document.getElementById('balOverlay');
+const balClose = document.getElementById('balClose');
+const tabDeposit = document.getElementById('tabDeposit');
+const tabWithdraw = document.getElementById('tabWithdraw');
+const paneDeposit = document.getElementById('paneDeposit');
+const paneWithdraw = document.getElementById('paneWithdraw');
+
+function openBalance(){
+  balOverlay.classList.add('show');
+  balOverlay.setAttribute('aria-hidden','false');
+}
+function closeBalance(){
+  balOverlay.classList.remove('show');
+  balOverlay.setAttribute('aria-hidden','true');
+}
+function setTab(which){
+  const dep = which === 'deposit';
+  tabDeposit.classList.toggle('active', dep);
+  tabDeposit.setAttribute('aria-selected', dep ? 'true':'false');
+  tabWithdraw.classList.toggle('active', !dep);
+  tabWithdraw.setAttribute('aria-selected', !dep ? 'true':'false');
+  paneDeposit.classList.toggle('show', dep);
+  paneWithdraw.classList.toggle('show', !dep);
+}
+
+btnBalance?.addEventListener('click', openBalance);
+balClose?.addEventListener('click', closeBalance);
+balOverlay?.addEventListener('click', (e)=>{ if(e.target === balOverlay) closeBalance(); });
+tabDeposit?.addEventListener('click', ()=>setTab('deposit'));
+tabWithdraw?.addEventListener('click', ()=>setTab('withdraw'));
 
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const rnd=(a,b)=>a+Math.random()*(b-a);
