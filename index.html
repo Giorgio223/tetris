@@ -387,7 +387,39 @@
       margin-top: 10px;
       flex-wrap:wrap;
     }
-  </style>
+  
+    /* Controls grid: tidy buttons */
+    .ctrlGrid{
+      display:grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap:10px;
+      width: 100%;
+    }
+    @media (max-width: 420px){
+      .ctrlGrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    .ctrlGrid button{
+      width:100%;
+      padding: 12px 14px;
+      font-size: 15px;
+    }
+    .btnPrimary{
+      background: rgba(255,207,63,.18);
+      border-color: rgba(255,207,63,.28);
+      box-shadow: 0 6px 0 rgba(0,0,0,.14);
+    }
+
+    /* Hide TonConnect root button UI (we open via our own button) */
+    #tonconnect-button{ display:none; }
+
+    .moneyRow{ display:flex; justify-content:center; margin: 10px 0 6px; }
+    #moneyAmountInput{
+      width: 180px;
+      text-align:center;
+      font-size: 16px;
+    }
+
+</style>
 
   <!-- TON Connect UI + TonWeb (for comment payload) -->
   <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.3.1/dist/tonconnect-ui.min.js"></script>
@@ -418,21 +450,20 @@
 
     <div class="tray" id="tray"></div>
 
+    
     <div class="bottomBar">
-      <div class="ctrl">
-        <button id="newGameBtnBottom">Новая игра</button>
+      <div class="ctrlGrid">
+        <button id="startGameBtn">Начать игру</button>
+        <button id="connectWalletBtn">Привязать кошелёк</button>
+        <button id="depositOpenBtn">Депозит</button>
 
-        <label class="amtLabel">
-          Сумма (TON)
-          <input id="amountInput" inputmode="decimal" placeholder="0.1" />
-        </label>
-
-        <button id="startRoundBtn">Начать (депозит)</button>
-        <button class="btnSecondary" id="endRoundBtn">Закончить раунд</button>
-        <button class="btnSecondary" id="withdrawBtn">Вывод</button>
+        <button id="startRoundBtn" class="btnPrimary">Начать раунд</button>
+        <button id="withdrawOpenBtn" class="btnSecondary">Вывод</button>
+        <button id="newGameBtnBottom" class="btnSecondary">Новая игра</button>
       </div>
       <div class="ctrlHint" id="ctrlHint"></div>
     </div>
+
   </div>
 
   <div class="dragGhost" id="ghost"></div>
@@ -446,6 +477,27 @@
         <button id="modalPrimary">Новая игра</button>
         <button class="btnSecondary" id="modalSecondary">Отмена</button>
       </div>
+
+
+  <!-- Deposit modal -->
+  <div class="overlay" id="moneyOverlay" style="display:none;">
+    <div class="modal">
+      <h2 id="moneyTitle">Депозит</h2>
+      <p id="moneyText">Введите сумму в TON и подтвердите.</p>
+      <div class="moneyRow">
+        <label class="amtLabel" style="align-items:center; text-align:center; min-width:auto;">
+          Сумма (TON)
+          <input id="moneyAmountInput" inputmode="decimal" placeholder="0.1" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="moneyConfirmBtn">Подтвердить</button>
+        <button class="btnSecondary" id="moneyCancelBtn">Отмена</button>
+      </div>
+    </div>
+  </div>
+
+</div>
     </div>
   </div>
 
@@ -459,16 +511,23 @@
   const ghostEl = document.getElementById('ghost');
   const toastEl = document.getElementById('toast');
 
-  const newGameBtn = document.getElementById('newGameBtnBottom');
-
+  
   const tonBalanceEl = document.getElementById('tonBalance');
   const tonAddrEl = document.getElementById('tonAddr');
 
-  const amountInput = document.getElementById('amountInput');
+    const startGameBtn = document.getElementById('startGameBtn');
+  const connectWalletBtn = document.getElementById('connectWalletBtn');
+  const depositOpenBtn = document.getElementById('depositOpenBtn');
   const startRoundBtn = document.getElementById('startRoundBtn');
-  const endRoundBtn = document.getElementById('endRoundBtn');
-  const withdrawBtn = document.getElementById('withdrawBtn');
-  const ctrlHint = document.getElementById('ctrlHint');
+  const withdrawOpenBtn = document.getElementById('withdrawOpenBtn');
+  const newGameBtn = document.getElementById('newGameBtnBottom');
+    const ctrlHint = document.getElementById('ctrlHint');
+  const moneyOverlay = document.getElementById('moneyOverlay');
+  const moneyTitle = document.getElementById('moneyTitle');
+  const moneyText = document.getElementById('moneyText');
+  const moneyAmountInput = document.getElementById('moneyAmountInput');
+  const moneyConfirmBtn = document.getElementById('moneyConfirmBtn');
+  const moneyCancelBtn = document.getElementById('moneyCancelBtn');
 
   const overlay = document.getElementById('overlay');
   const modalTitle = document.getElementById('modalTitle');
@@ -522,6 +581,32 @@
   function setHint(msg){
     ctrlHint.textContent = msg || "";
   }
+
+
+  let moneyMode = null; // 'deposit' | 'withdraw' | 'stake'
+  function openMoneyModal(mode){
+    moneyMode = mode;
+    moneyAmountInput.value = "";
+    moneyOverlay.style.display = "grid";
+    if(mode === "deposit"){
+      moneyTitle.textContent = "Депозит";
+      moneyText.textContent = "Введите сумму депозита в TON и подтвердите перевод.";
+      moneyConfirmBtn.textContent = "Подтвердить";
+    } else if(mode === "withdraw"){
+      moneyTitle.textContent = "Вывод";
+      moneyText.textContent = "Введите сумму вывода в TON. Будет создана заявка (pending).";
+      moneyConfirmBtn.textContent = "Создать заявку";
+    } else {
+      moneyTitle.textContent = "Ставка";
+      moneyText.textContent = "Введите сумму ставки в TON. Ставка списывается с баланса и начинается раунд.";
+      moneyConfirmBtn.textContent = "Начать раунд";
+    }
+  }
+  function closeMoneyModal(){
+    moneyOverlay.style.display = "none";
+    moneyMode = null;
+  }
+
 
   function showToast(msg){
     toastEl.textContent = msg;
@@ -1129,117 +1214,157 @@
     }, 1200);
   }
 
-  startRoundBtn.addEventListener('click', async () => {
-    setHint("");
+  
+  // ===== Actions =====
+  connectWalletBtn.addEventListener('click', async () => {
+    if(!tonConnectUI){
+      setHint("TON UI ещё не готов.");
+      return;
+    }
+    try{
+      tonConnectUI.openModal();
+    } catch {
+      setHint("Не удалось открыть окно подключения.");
+    }
+  });
+
+  depositOpenBtn.addEventListener('click', () => {
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+    openMoneyModal("deposit");
+  });
+
+  withdrawOpenBtn.addEventListener('click', () => {
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+    openMoneyModal("withdraw");
+  });
+
+  startRoundBtn.addEventListener('click', () => {
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+    openMoneyModal("stake");
+  });
+
+  startGameBtn.addEventListener('click', () => {
+    const addr = requireWalletOrHint();
+    if(!addr) return;
+    openMoneyModal("stake");
+  });
+
+  moneyCancelBtn.addEventListener('click', closeMoneyModal);
+  moneyOverlay.addEventListener('pointerdown', (e) => {
+    if(e.target === moneyOverlay) closeMoneyModal();
+  });
+
+  moneyConfirmBtn.addEventListener('click', async () => {
     const addr = requireWalletOrHint();
     if(!addr) return;
 
-    const amt = tonStrToNanotons(amountInput.value || "0");
+    const amt = tonStrToNanotons(moneyAmountInput.value || "0");
     if(amt <= 0n){
-      setHint("Введи сумму депозита (например 0.1).");
+      setHint("Введите сумму (например 0.1).");
       return;
     }
 
-    let dep;
-    try{
-      dep = await apiPost("/api/deposit/create", { tonAddress: addr, amountNano: amt.toString() });
-    } catch {
-      setHint("Сервер депозита недоступен.");
-      return;
-    }
-    if(!dep || !dep.ok || !dep.depositId || !dep.houseAddress){
-      setHint("Ошибка создания депозита.");
-      return;
-    }
+    if(moneyMode === "deposit"){
+      closeMoneyModal();
+      setHint("");
 
-    const depositId = dep.depositId;
-    const houseAddress = dep.houseAddress;
-    const payloadB64 = await createCommentPayloadBase64(depositId);
-
-    try{
-      await tonConnectUI.sendTransaction({
-        validUntil: Math.floor(Date.now()/1000) + 300,
-        messages: [{
-          address: houseAddress,
-          amount: amt.toString(),
-          ...(payloadB64 ? { payload: payloadB64 } : {})
-        }]
-      });
-      setHint("Транзакция отправлена. Проверяю депозит…");
-    } catch {
-      setHint("Депозит отменён или ошибка кошелька.");
-      return;
-    }
-
-    let confirmed = false;
-    for(let i=0;i<10;i++){
-      await new Promise(r=>setTimeout(r, 1800));
+      // 1) create deposit id on backend
+      let dep;
       try{
-        const v = await apiPost("/api/deposit/verify", { depositId });
-        if(v && v.ok && v.status === "confirmed"){ confirmed = true; break; }
-      } catch {}
-    }
-    if(!confirmed){
-      setHint("Депозит пока не подтверждён. Попробуй ещё раз через минуту.");
+        dep = await apiPost("/api/deposit/create", { tonAddress: addr, amountNano: amt.toString() });
+      } catch {
+        setHint("Сервер депозита недоступен.");
+        return;
+      }
+      if(!dep || !dep.ok || !dep.depositId || !dep.houseAddress){
+        setHint("Ошибка создания депозита.");
+        return;
+      }
+
+      const depositId = dep.depositId;
+      const houseAddress = dep.houseAddress;
+      const payloadB64 = await createCommentPayloadBase64(depositId);
+
+      // 2) send TON tx
+      try{
+        await tonConnectUI.sendTransaction({
+          validUntil: Math.floor(Date.now()/1000) + 300,
+          messages: [{
+            address: houseAddress,
+            amount: amt.toString(),
+            ...(payloadB64 ? { payload: payloadB64 } : {})
+          }]
+        });
+        setHint("Транзакция отправлена. Проверяю депозит…");
+      } catch {
+        setHint("Депозит отменён или ошибка кошелька.");
+        return;
+      }
+
+      // 3) verify (poll)
+      let confirmed = false;
+      for(let i=0;i<12;i++){
+        await new Promise(r=>setTimeout(r, 1700));
+        try{
+          const v = await apiPost("/api/deposit/verify", { depositId });
+          if(v && v.ok && v.status === "confirmed"){ confirmed = true; break; }
+        } catch {}
+      }
+      if(!confirmed){
+        setHint("Депозит пока не подтверждён. Баланс обновится после подтверждения.");
+        return;
+      }
+
+      setHint("Депозит подтверждён. Баланс обновлён.");
+      await upsertUserAndLoadBalance(addr);
       return;
     }
 
+    if(moneyMode === "withdraw"){
+      closeMoneyModal();
+      setHint("");
+
+      try{
+        const j = await apiPost("/api/withdraw/request", { tonAddress: addr, amountNano: amt.toString() });
+        if(j && j.ok){
+          setHint(`Заявка на вывод: ${j.withdrawId} (pending)`);
+          await refreshInternalBalance(addr);
+        } else {
+          setHint(j?.error === "insufficient_balance" ? "Недостаточно баланса." : "Ошибка вывода.");
+        }
+      } catch {
+        setHint("Сервер недоступен (withdraw).");
+      }
+      return;
+    }
+
+    // stake / start round
+    closeMoneyModal();
+    setHint("");
+
+    // NOTE: backend currently doesn't reserve stake; we store stake locally and settle via /api/round/end.
+    // Next step: add /api/round/reserve to move balance->locked.
     try{
       const rr = await apiPost("/api/round/start", { tonAddress: addr });
       if(rr && rr.ok && rr.roundId){
         roundId = rr.roundId;
         roundDepositNanotons = amt;
         roundStartedAt = nowMs();
-        clearSavedRound();
         newGame(true);
-        setHint("Депозит подтверждён. Раунд начат!");
-        await upsertUserAndLoadBalance(addr);
+        setHint("Раунд начат.");
+        // Save initial state
+        saveRound();
       } else {
-        setHint("Депозит подтверждён, но раунд не стартовал (сервер).");
+        setHint("Не удалось начать раунд (сервер).");
       }
     } catch {
-      setHint("Депозит подтверждён, но ошибка старта раунда.");
+      setHint("Сервер недоступен (start round).");
     }
   });
 
-  endRoundBtn.addEventListener('click', async () => {
-    setHint("");
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-    if(!roundId){
-      setHint("Нет активного раунда. Сначала начни (депозит).");
-      return;
-    }
-
-    try{
-      const j = await apiPost("/api/round/end", {
-        tonAddress: addr,
-        score,
-        depositNano: roundDepositNanotons.toString(),
-        roundId
-      });
-      if(j && j.ok){
-        roundId = null;
-        roundDepositNanotons = 0n;
-        isGameOver = true;
-        openModal('gameover');
-        await refreshInternalBalance(addr);
-
-        const net = BigInt(j.netNano || "0");
-        const sign = net >= 0n ? "+" : "-";
-        const abs = net >= 0n ? net : -net;
-        setHint(`Раунд завершён. x${j.mult}  ${sign}${nanotonsToTonStr(abs)} TON`);
-        clearSavedRound();
-      } else {
-        setHint("Ошибка завершения раунда.");
-      }
-    } catch {
-      setHint("Сервер недоступен (end).");
-    }
-  });
-
-  withdrawBtn.addEventListener('click', async () => {
-    setHint("");
     const addr = requireWalletOrHint();
     if(!addr) return;
 
