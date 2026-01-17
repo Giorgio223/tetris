@@ -181,8 +181,7 @@
     <div class="hud">
       <div class="pill">
         <span><b>СЧЁТ</b> <span id="score">0</span></span>
-        <span style="opacity:.6">•</span>
-        <span><b>ЛУЧШИЙ</b> <span id="best">0</span></span>
+        
       </div>
       <button class="btn" id="btnNew">Новая</button>
     </div>
@@ -220,7 +219,7 @@
 
   const topPad = 86;         // space for HUD overlay feel
   const sidePad = 64;
-  const gap = 26;
+  const gap = 16;
   const trayH = 240;         // reserved for pieces
   const boardAreaH = H - topPad - trayH - gap;
 
@@ -266,15 +265,12 @@
   const floaters = [];
 
   const elScore = document.getElementById('score');
-  const elBest = document.getElementById('best');
-  const comboEl = document.getElementById('combo');
+    const comboEl = document.getElementById('combo');
   const comboNumEl = document.getElementById('comboNum');
   const over = document.getElementById('over');
   const finalScore = document.getElementById('finalScore');
 
-  elBest.textContent = best;
-
-  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const rnd=(a,b)=>a+Math.random()*(b-a);
 
   function shade(hex, amt){
@@ -301,7 +297,7 @@
 
   // Neon "glass" block
   function neonBlock(px,py,s,base,alpha=1,scale=1){
-    const pad = 5;
+    const pad = 3;
     const w=(s-pad)*scale, h=(s-pad)*scale;
     const x=px+(s-pad-w)/2, y=py+(s-pad-h)/2;
 
@@ -310,7 +306,7 @@
 
     // Outer neon glow
     ctx.shadowColor = base;
-    ctx.shadowBlur = 22;
+    ctx.shadowBlur = 12;
     ctx.shadowOffsetY = 0;
 
     // body gradient
@@ -520,7 +516,7 @@
         const px=board.x+x*board.cell;
         const py=board.y+y*board.cell;
         ctx.fillStyle = bg;
-        roundedRect(px+7, py+7, board.cell-14, board.cell-14, 14);
+        roundedRect(px+4, py+4, board.cell-8, board.cell-8, 10);
         ctx.fill();
       }
     }
@@ -779,11 +775,6 @@
   // ===== Score / Over
   function updateScore(){
     elScore.textContent = score;
-    if(score>best){
-      best=score;
-      localStorage.setItem('neon_bp_best', String(best));
-      elBest.textContent = best;
-    }
   }
   function gameOver(){
     finalScore.textContent = score;
