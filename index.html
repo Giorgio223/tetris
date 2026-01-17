@@ -48,7 +48,7 @@
       -webkit-tap-highlight-color: transparent;
     }
     .hud{
-      position:absolute; left:14px; right:14px; top:12px;
+      position:absolute; left:14px; right:14px; top:max(12px, env(safe-area-inset-top));
       display:flex; align-items:center; justify-content:space-between;
       pointer-events:none;
       color:var(--txt);
@@ -214,33 +214,56 @@
   // ===== Game config
   const N = 8;
 
-  // Layout: we guarantee the tray is INSIDE canvas (fix for "pieces climb off screen")
-  const W = canvas.width, H = canvas.height;
+  // Layout: keep HUD from overlapping the board (dynamic on mobile)
+const hudEl = document.querySelector('.hud');
 
-  const topPad = 86;         // space for HUD overlay feel
-  const sidePad = 64;
-  const gap = 16;
-  const trayH = 240;         // reserved for pieces
+let W = canvas.width, H = canvas.height;
+
+let topPad = 86;     // will be recalculated based on HUD height
+const sidePad = 64;
+let gap = 16;
+const trayH = 240;
+
+// These will be (re)computed in layout()
+let cell = 0;
+const board = { x:0, y:0, n:N, cell:0, w:0, h:0 };
+const tray  = { x:0, y:0, w:0, h:trayH };
+
+function layout(){
+  W = canvas.width; H = canvas.height;
+
+  // Convert CSS px -> canvas units for Y
+  const r = canvas.getBoundingClientRect();
+  const yScale = r.height ? (canvas.height / r.height) : 1;
+
+  // HUD height in canvas units + some breathing room
+  const hudH = hudEl ? hudEl.getBoundingClientRect().height : 0;
+  topPad = Math.max(86, Math.round((hudH + 18) * yScale));
+
+  // Slightly tighten gap on very small screens
+  gap = (r.height && r.height < 620) ? 12 : 16;
+
   const boardAreaH = H - topPad - trayH - gap;
 
-  const cell = Math.floor(Math.min((W - sidePad*2)/N, boardAreaH/N));
+  cell = Math.floor(Math.min((W - sidePad*2)/N, boardAreaH/N));
   const boardW = cell*N, boardH = cell*N;
 
-  const board = {
-    x: Math.round((W - boardW)/2),
-    y: Math.round(topPad),
-    n: N,
-    cell,
-    w: boardW,
-    h: boardH
-  };
+  board.x = Math.round((W - boardW)/2);
+  board.y = Math.round(topPad);
+  board.cell = cell;
+  board.w = boardW;
+  board.h = boardH;
 
-  const tray = {
-    x: 0,
-    y: board.y + board.h + gap,
-    w: W,
-    h: trayH
-  };
+  tray.x = 0;
+  tray.y = board.y + board.h + gap;
+  tray.w = W;
+  tray.h = trayH;
+}
+
+layout();
+
+// Re-layout on resize/orientation changes
+window.addEventListener('resize', ()=>{ layout(); });
 
   // Colors (cyberpunk)
   const palette = [
