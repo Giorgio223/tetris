@@ -2,1509 +2,834 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>8×8 Blocks</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Neon Block Puzzle 8×8</title>
   <style>
     :root{
-      --bg1:#3f5da8;
-      --bg2:#3a579e;
-
-      --cell:#1b2b52;
-      --cell2:#182747;
-
-      --text:#ffffff;
-      --yellow:#ffcf3f;
-
-      --wrapW: min(560px, 96vw);
-
-      --cellSize: clamp(24px, 6.05vw, 34px);
-      --gap: 1px;
-
-      --trayB: 16px;
-      --trayGap: 2px;
-
-      --ghostB: 24px;
-      --ghostGap: 4px;
-
-      --shadow: 0 18px 40px rgba(0,0,0,.28);
+      --bg0:#070814;
+      --bg1:#090a1f;
+      --bg2:#0b1230;
+      --panel:#0b0f26;
+      --panel2:#0a0d20;
+      --glass:rgba(255,255,255,.06);
+      --gridA:rgba(255,255,255,.05);
+      --gridB:rgba(0,0,0,.18);
+      --neonCyan:#35f2ff;
+      --neonPink:#ff3df2;
+      --neonViolet:#9b5bff;
+      --txt:#eaf2ff;
+      --muted:rgba(234,242,255,.72);
+      --shadow:rgba(0,0,0,.55);
     }
-
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      min-height:100vh;
-      display:grid;
-      place-items:center;
-      background: linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
-      color:var(--text);
-      user-select:none;
-      -webkit-user-select:none;
+    html,body{height:100%;margin:0;background:radial-gradient(1200px 800px at 25% 10%, rgba(255,61,242,.20), transparent 55%),
+                                           radial-gradient(900px 700px at 85% 35%, rgba(53,242,255,.18), transparent 55%),
+                                           radial-gradient(1200px 900px at 50% 90%, rgba(155,91,255,.16), transparent 60%),
+                                           linear-gradient(180deg, var(--bg0), var(--bg2));
+              font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; overflow:hidden;}
+    .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box;}
+    .ui{
+      position:relative;
+      width:min(620px, 96vw);
+      max-height:92vh;
+      aspect-ratio: 9/10;
+      border-radius:22px;
+    }
+    canvas{
+      width:100%;
+      height:100%;
+      display:block;
+      border-radius:22px;
+      background:
+        radial-gradient(900px 700px at 20% 15%, rgba(53,242,255,.08), transparent 60%),
+        radial-gradient(900px 700px at 85% 40%, rgba(255,61,242,.08), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(0,0,0,.10));
+      box-shadow: 0 30px 90px var(--shadow);
       touch-action:none;
-      overflow:auto;
-      padding-bottom: 18px;
+      -webkit-tap-highlight-color: transparent;
     }
-
-    .wrap{
-      width:var(--wrapW);
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      padding: 14px 0;
+    .hud{
+      position:absolute; left:14px; right:14px; top:12px;
+      display:flex; align-items:center; justify-content:space-between;
+      pointer-events:none;
+      color:var(--txt);
+      text-shadow:0 10px 22px rgba(0,0,0,.55);
+      font-weight:900;
+      letter-spacing:.4px;
     }
-
-    /* top */
-    .top{
-      display:flex;
-      align-items:flex-start;
-      justify-content:space-between;
-      padding: 6px 6px;
-      gap:10px;
+    .pill{
+      pointer-events:auto;
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px;
+      border-radius:16px;
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.10));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 18px 45px rgba(0,0,0,.35), 0 0 0 1px rgba(53,242,255,.08) inset;
+      backdrop-filter: blur(6px);
     }
-    .leftScore{
-      display:flex;
-      align-items:baseline;
-      gap:10px;
-    }
-    .scoreBig{
-      font-weight: 1000;
-      font-size: 44px;
-      line-height: 1;
-      letter-spacing: .5px;
-      text-shadow: 0 3px 0 rgba(0,0,0,.18);
-      font-variant-numeric: tabular-nums;
-    }
-
-    button{
-      background: rgba(0,0,0,.14);
-      color:#fff;
-      border: 1px solid rgba(255,255,255,.18);
-      border-radius: 999px;
-      padding: 10px 14px;
-      font-weight: 950;
+    .pill b{font-size:14px; opacity:.8}
+    .pill span{font-size:16px}
+    .btn{
+      pointer-events:auto;
+      border:0;
       cursor:pointer;
-      box-shadow: 0 6px 0 rgba(0,0,0,.14);
+      user-select:none;
+      font-weight:950;
+      color:var(--txt);
+      padding:10px 12px;
+      border-radius:16px;
+      background:
+        radial-gradient(90% 140% at 20% 20%, rgba(53,242,255,.25), transparent 55%),
+        radial-gradient(90% 140% at 80% 30%, rgba(255,61,242,.25), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.12));
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow: 0 18px 45px rgba(0,0,0,.35),
+                  0 0 22px rgba(53,242,255,.20),
+                  0 0 22px rgba(255,61,242,.14);
+    }
+    .btn:active{transform:translateY(1px)}
+    .combo{
+      position:absolute;
+      left:50%;
+      top:43%;
+      transform:translate(-50%,-50%);
+      font-weight:1000;
+      font-size:66px;
+      letter-spacing:.2px;
+      opacity:0;
+      pointer-events:none;
+      user-select:none;
+      filter: drop-shadow(0 14px 18px rgba(0,0,0,.35));
       white-space:nowrap;
     }
-    button:active{transform: translateY(1px); box-shadow: 0 5px 0 rgba(0,0,0,.14)}
-    .btnSecondary{ background: rgba(255,255,255,.08); }
-
-    .sideBtn{
-      display:flex;
-      align-items:flex-start;
-      gap:12px;
+    .combo .word{
+      color:#ffffff;
+      -webkit-text-stroke: 10px rgba(53,242,255,.95);
+      paint-order: stroke fill;
+      text-shadow:
+        0 10px 18px rgba(0,0,0,.45),
+        0 0 28px rgba(53,242,255,.55);
     }
-
-    .balanceBox{
-      display:flex;
-      flex-direction:column;
-      align-items:flex-end;
-      gap:4px;
-      margin-right: 6px;
-      min-width: 120px;
+    .combo .num{
+      margin-left:12px;
+      color:#fff1a6;
+      -webkit-text-stroke: 10px rgba(255,61,242,.95);
+      paint-order: stroke fill;
+      text-shadow:
+        0 10px 18px rgba(0,0,0,.45),
+        0 0 30px rgba(255,61,242,.55);
     }
-    .balanceLabel{
-      font-weight: 950;
-      font-size: 12px;
-      opacity:.92;
-      letter-spacing:.3px;
+    .combo.show{animation: pop .70s cubic-bezier(.2,.9,.25,1) forwards;}
+    @keyframes pop{
+      0%{transform:translate(-50%,-50%) scale(.55);opacity:0}
+      25%{opacity:1}
+      55%{transform:translate(-50%,-50%) scale(1.12);opacity:1}
+      100%{transform:translate(-50%,-50%) scale(1);opacity:0}
     }
-    .balanceValue{
-      font-weight: 1000;
-      font-size: 18px;
-      color: var(--yellow);
-      font-variant-numeric: tabular-nums;
-      text-shadow: 0 2px 0 rgba(0,0,0,.18);
-    }
-    .balanceAddr{
-      font-size: 11px;
-      opacity:.78;
-      max-width: 220px;
-      overflow:hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .tonBtn{ display:flex; justify-content:flex-end; }
-
-    .boardShell{
-      background: rgba(20,30,58,.22);
-      padding: 10px;
-      border-radius: 22px;
-      box-shadow: inset 0 0 0 2px rgba(255,255,255,.06), var(--shadow);
-    }
-    .board{
-      background: linear-gradient(180deg, #22356a 0%, #1c2c58 100%);
-      border-radius: 18px;
-      padding: 10px;
-      box-shadow: inset 0 0 0 3px rgba(0,0,0,.18);
-    }
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(8, var(--cellSize));
-      grid-template-rows: repeat(8, var(--cellSize));
-      gap: var(--gap);
-      justify-content:center;
-      background: rgba(0,0,0,.16);
-      padding: var(--gap);
-      border-radius: 14px;
-    }
-
-    .cell{
-      position:relative;
-      border-radius: 7px;
-      background: linear-gradient(180deg, var(--cell) 0%, var(--cell2) 100%);
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
-      overflow:hidden;
-    }
-
-    /* Smart highlight */
-    .cell.hintPlace{
-      box-shadow:
-        inset 0 0 0 2px rgba(255,255,255,.22),
-        0 0 0 2px rgba(255,255,255,.06);
-    }
-    .cell.hintLine{
-      box-shadow:
-        inset 0 0 0 2px rgba(255,207,63,.35),
-        0 0 18px rgba(255,207,63,.14);
-      animation: hintPulse .6s ease-in-out infinite alternate;
-    }
-    @keyframes hintPulse{
-      from{ filter: brightness(1); }
-      to{ filter: brightness(1.12); }
-    }
-
-    .tile, .ptile{
-      position:absolute;
-      inset: -2px;
-      border-radius: 7px;
-      background: var(--fill, #ff6b6b);
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,.22),
-        inset 0 -3px 0 rgba(0,0,0,.22),
-        inset 3px 0 0 rgba(255,255,255,.14),
-        inset -3px 0 0 rgba(0,0,0,.18),
-        0 3px 0 rgba(0,0,0,.10);
-    }
-    .ptile{
-      opacity: .48;
-      filter: saturate(1.08);
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,.18),
-        inset 0 -3px 0 rgba(0,0,0,.18),
-        inset 3px 0 0 rgba(255,255,255,.10),
-        inset -3px 0 0 rgba(0,0,0,.14);
-    }
-
-    /* Remove decorative dots/marks */
-    .tile::before, .tile::after,
-    .ptile::before, .ptile::after,
-    .pblock::before, .pblock::after{
-      display:none !important;
-      content:none !important;
-    }
-
-    .tray{
-      display:flex;
-      justify-content:space-between;
-      gap:14px;
-      padding-top: 6px;
-    }
-    .piece{
-      flex:1;
-      min-width:0;
-      display:grid;
-      place-items:center;
-      padding: 10px 6px;
-      border-radius: 14px;
-      background: rgba(10,16,32,.12);
-      box-shadow: inset 0 0 0 2px rgba(255,255,255,.06);
-      cursor:grab;
-      transition: transform .08s ease, filter .08s ease, opacity .15s ease;
-    }
-    .piece:active{cursor:grabbing}
-    .piece.isDragging{
-      filter: saturate(1.05);
-      transform: translateY(-6px);
-    }
-    .piece.disabled{ opacity:.55; }
-
-    .pieceInner{
-      --b: var(--trayB);
-      --g: var(--trayGap);
-      display:grid;
-      gap: var(--g);
-      grid-template-columns: repeat(5, var(--b));
-      grid-template-rows: repeat(5, var(--b));
-      width: calc(5*var(--b) + 4*var(--g));
-      height: calc(5*var(--b) + 4*var(--g));
-    }
-
-    .pblock{
-      width:var(--b); height:var(--b);
-      border-radius: 6px;
-      background: var(--pcolor, #ff6b6b);
-      box-shadow:
-        inset 0 2px 0 rgba(255,255,255,.22),
-        inset 0 -3px 0 rgba(0,0,0,.20),
-        inset 3px 0 0 rgba(255,255,255,.14),
-        inset -3px 0 0 rgba(0,0,0,.18),
-        0 2px 0 rgba(0,0,0,.10);
-      position:relative;
-    }
-    .pblock.empty{
-      background: transparent;
-      box-shadow:none;
-    }
-
-    .dragGhost{
-      position:fixed;
-      left:0; top:0;
-      transform: translate(-9999px,-9999px);
-      z-index:9999;
-      pointer-events:none;
-      opacity:.98;
-      will-change: transform;
-      filter: drop-shadow(0 14px 26px rgba(0,0,0,.35));
-    }
-    /* Keep 5×5 grid but hide empties */
-    .dragGhost .pblock.empty{ visibility:hidden; }
-
-    /* Drag ghost: crisp block + smaller shadow */
-    .dragGhost .pblock{ position: relative; z-index: 1; }
-    .dragGhost .pblock.gblock::after{
-      content:"";
-      position:absolute;
-      inset: 3px;
-      border-radius: 6px;
-      background: rgba(0,0,0,.28);
-      transform: translate(-8px,-8px) scale(0.86);
-      z-index: -1;
-      box-shadow: 0 2px 0 rgba(0,0,0,.12);
-    }
-    .dragGhost .pieceInner{
-      --b: var(--ghostB);
-      --g: var(--ghostGap);
-    }
-
-    /* Controls panel */
-    .bottomBar{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      justify-content:center;
-      align-items:center;
-      padding: 10px 8px calc(16px + env(safe-area-inset-bottom));
-    }
-    .ctrl{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      justify-content:center;
-      align-items:center;
-      width: 100%;
-    }
-    .amtLabel{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      font-weight: 900;
-      font-size: 12px;
-      opacity:.92;
-      text-align:left;
-      min-width: 140px;
-    }
-    .amtLabel input{
-      width: 140px;
-      padding: 10px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.18);
-      background: rgba(0,0,0,.14);
-      color:#fff;
-      outline:none;
-      font-weight: 900;
-    }
-    .amtLabel input::placeholder{color: rgba(255,255,255,.55)}
-    .ctrlHint{
-      font-size: 12px;
-      opacity: .8;
-      text-align:center;
-      min-height: 16px;
-    }
-
-    .toast{
-      position:fixed;
-      bottom:16px;
-      left:50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,.42);
-      border:1px solid rgba(255,255,255,.16);
-      color:#fff;
-      padding:10px 14px;
-      border-radius: 999px;
-      font-weight:950;
-      font-size:13px;
-      opacity:0;
-      transition: opacity .18s ease;
-      pointer-events:none;
-    }
-    .toast.show{opacity:1}
-
-    /* Modal */
     .overlay{
-      position:fixed;
-      inset:0;
-      display:none;
-      place-items:center;
-      background: rgba(0,0,0,.35);
-      backdrop-filter: blur(3px);
-      z-index: 10000;
+      position:absolute; inset:0;
+      display:none; align-items:center; justify-content:center;
+      background:rgba(0,0,0,.35);
+      border-radius:22px;
+      backdrop-filter: blur(4px);
     }
-    .overlay.show{display:grid}
-    .modal{
-      width: min(420px, 90vw);
-      background: rgba(20,28,54,.92);
-      border:1px solid rgba(255,255,255,.16);
-      border-radius: 22px;
-      box-shadow: 0 22px 60px rgba(0,0,0,.35);
-      padding: 18px 16px 14px;
+    .overlay.show{display:flex;}
+    .card{
+      width:min(380px, 88%);
+      border-radius:20px;
+      padding:16px;
+      color:var(--txt);
       text-align:center;
+      background:
+        radial-gradient(90% 140% at 15% 20%, rgba(53,242,255,.18), transparent 55%),
+        radial-gradient(90% 140% at 80% 30%, rgba(255,61,242,.18), transparent 60%),
+        linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.18));
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:0 30px 80px rgba(0,0,0,.5),
+                 0 0 0 1px rgba(53,242,255,.10) inset;
     }
-    .modal h2{
-      margin:6px 0 8px;
-      font-size: 28px;
-      letter-spacing:.6px;
+    .card h1{margin:0 0 8px 0;font-size:24px;letter-spacing:.5px}
+    .card p{margin:8px 0;opacity:.9}
+    .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:12px;}
+    .card button{
+      border:0; cursor:pointer; user-select:none;
+      padding:10px 14px; border-radius:16px;
+      font-weight:950; color:var(--txt);
+      background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.16));
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 18px 45px rgba(0,0,0,.35);
     }
-    .modal p{
-      margin:0 0 14px;
-      color: rgba(255,255,255,.85);
+    .card button.primary{
+      color:#071022;
+      background:
+        linear-gradient(180deg, rgba(53,242,255,.95), rgba(155,91,255,.85));
+      border:0;
+      box-shadow:0 20px 55px rgba(53,242,255,.25), 0 20px 55px rgba(155,91,255,.18);
+    }
+    .hint{
+      position:absolute;left:50%;bottom:10px;transform:translateX(-50%);
+      color:var(--muted);
+      font-size:12px;
       font-weight:800;
+      text-shadow:0 10px 22px rgba(0,0,0,.55);
+      pointer-events:none;
     }
-    .modal .row{
-      display:flex;
-      gap:10px;
-      justify-content:center;
-      margin-top: 10px;
-      flex-wrap:wrap;
-    }
-  
-    /* Controls grid: tidy buttons */
-    .ctrlGrid{
-      display:grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap:10px;
-      width: 100%;
-    }
-    @media (max-width: 420px){
-      .ctrlGrid{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    .ctrlGrid button{
-      width:100%;
-      padding: 12px 14px;
-      font-size: 15px;
-    }
-    .btnPrimary{
-      background: rgba(255,207,63,.18);
-      border-color: rgba(255,207,63,.28);
-      box-shadow: 0 6px 0 rgba(0,0,0,.14);
-    }
-
-    /* Hide TonConnect root button UI (we open via our own button) */
-    #tonconnect-button{ display:none; }
-
-    .moneyRow{ display:flex; justify-content:center; margin: 10px 0 6px; }
-    #moneyAmountInput{
-      width: 180px;
-      text-align:center;
-      font-size: 16px;
-    }
-
-</style>
-
-  <!-- TON Connect UI + TonWeb (for comment payload) -->
-  <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.3.1/dist/tonconnect-ui.min.js"></script>
-  <script src="https://unpkg.com/tonweb@0.0.66/dist/tonweb.js"></script>
+  </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div class="leftScore">
-        <div class="scoreBig" id="score">0</div>
+<div class="wrap">
+  <div class="ui">
+    <div class="hud">
+      <div class="pill">
+        <span><b>СЧЁТ</b> <span id="score">0</span></span>
+        <span style="opacity:.6">•</span>
+        <span><b>ЛУЧШИЙ</b> <span id="best">0</span></span>
       </div>
+      <button class="btn" id="btnNew">Новая</button>
+    </div>
 
-      <div class="sideBtn">
-        <div class="balanceBox" title="TON кошелек и баланс">
-          <span class="balanceLabel">Баланс:</span>
-          <span class="balanceValue" id="tonBalance">—</span>
-          <span class="balanceAddr" id="tonAddr"></span>
-          <div class="tonBtn" id="tonconnect-button"></div>
+    <div class="combo" id="combo"><span class="word">Combo</span><span class="num" id="comboNum">2</span></div>
+
+    <canvas id="c" width="720" height="820" aria-label="Neon Block Puzzle"></canvas>
+
+    <div class="overlay" id="over">
+      <div class="card">
+        <h1>Игра окончена</h1>
+        <p>Счёт: <b id="finalScore">0</b></p>
+        <p style="opacity:.85">Новых ходов нет.</p>
+        <div class="row">
+          <button class="primary" id="btnRestart">Заново</button>
+          <button id="btnClose">Закрыть</button>
         </div>
       </div>
     </div>
 
-    <div class="boardShell">
-      <div class="board">
-        <div class="grid" id="grid"></div>
-      </div>
-    </div>
-
-    <div class="tray" id="tray"></div>
-
-    
-    <div class="bottomBar">
-      <div class="ctrlGrid">
-        <button id="startGameBtn">Начать игру</button>
-        <button id="connectWalletBtn">Привязать кошелёк</button>
-        <button id="depositOpenBtn">Депозит</button>
-
-        <button id="startRoundBtn" class="btnPrimary">Начать раунд</button>
-        <button id="withdrawOpenBtn" class="btnSecondary">Вывод</button>
-        <button id="newGameBtnBottom" class="btnSecondary">Новая игра</button>
-      </div>
-      <div class="ctrlHint" id="ctrlHint"></div>
-    </div>
-
+    <div class="hint">Перетаскивай фигуры снизу. Заполняй ряд или колонку — они исчезнут.</div>
   </div>
-
-  <div class="dragGhost" id="ghost"></div>
-  <div class="toast" id="toast"></div>
-
-  <div class="overlay" id="overlay">
-    <div class="modal">
-      <h2 id="modalTitle">GAME OVER</h2>
-      <p id="modalText">Ходов больше нет.</p>
-      <div class="row">
-        <button id="modalPrimary">Новая игра</button>
-        <button class="btnSecondary" id="modalSecondary">Отмена</button>
-      </div>
-
-
-  <!-- Deposit modal -->
-  <div class="overlay" id="moneyOverlay" style="display:none;">
-    <div class="modal">
-      <h2 id="moneyTitle">Депозит</h2>
-      <p id="moneyText">Введите сумму в TON и подтвердите.</p>
-      <div class="moneyRow">
-        <label class="amtLabel" style="align-items:center; text-align:center; min-width:auto;">
-          Сумма (TON)
-          <input id="moneyAmountInput" inputmode="decimal" placeholder="0.1" />
-        </label>
-      </div>
-      <div class="row">
-        <button id="moneyConfirmBtn">Подтвердить</button>
-        <button class="btnSecondary" id="moneyCancelBtn">Отмена</button>
-      </div>
-    </div>
-  </div>
-
 </div>
-    </div>
-  </div>
 
 <script>
 (() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  // ===== Game config
   const N = 8;
 
-  const gridEl = document.getElementById('grid');
-  const trayEl = document.getElementById('tray');
-  const scoreEl = document.getElementById('score');
-  const ghostEl = document.getElementById('ghost');
-  const toastEl = document.getElementById('toast');
+  // Layout: we guarantee the tray is INSIDE canvas (fix for "pieces climb off screen")
+  const W = canvas.width, H = canvas.height;
 
-  
-  const tonBalanceEl = document.getElementById('tonBalance');
-  const tonAddrEl = document.getElementById('tonAddr');
+  const topPad = 86;         // space for HUD overlay feel
+  const sidePad = 64;
+  const gap = 26;
+  const trayH = 240;         // reserved for pieces
+  const boardAreaH = H - topPad - trayH - gap;
 
-    const startGameBtn = document.getElementById('startGameBtn');
-  const connectWalletBtn = document.getElementById('connectWalletBtn');
-  const depositOpenBtn = document.getElementById('depositOpenBtn');
-  const startRoundBtn = document.getElementById('startRoundBtn');
-  const withdrawOpenBtn = document.getElementById('withdrawOpenBtn');
-  const newGameBtn = document.getElementById('newGameBtnBottom');
-    const ctrlHint = document.getElementById('ctrlHint');
-  const moneyOverlay = document.getElementById('moneyOverlay');
-  const moneyTitle = document.getElementById('moneyTitle');
-  const moneyText = document.getElementById('moneyText');
-  const moneyAmountInput = document.getElementById('moneyAmountInput');
-  const moneyConfirmBtn = document.getElementById('moneyConfirmBtn');
-  const moneyCancelBtn = document.getElementById('moneyCancelBtn');
+  const cell = Math.floor(Math.min((W - sidePad*2)/N, boardAreaH/N));
+  const boardW = cell*N, boardH = cell*N;
 
-  const overlay = document.getElementById('overlay');
-  const modalTitle = document.getElementById('modalTitle');
-  const modalText  = document.getElementById('modalText');
-  const modalPrimary = document.getElementById('modalPrimary');
-  const modalSecondary = document.getElementById('modalSecondary');
+  const board = {
+    x: Math.round((W - boardW)/2),
+    y: Math.round(topPad),
+    n: N,
+    cell,
+    w: boardW,
+    h: boardH
+  };
 
-  let board = Array.from({length:N}, () => Array(N).fill(null));
-  let tray = [];
-  let score = 0;
+  const tray = {
+    x: 0,
+    y: board.y + board.h + gap,
+    w: W,
+    h: trayH
+  };
 
-  let comboStreak = 0;
-  let isGameOver = false;
-
-  // ONE declaration only
-  let roundDepositNanotons = 0n;
-  let roundStartedAt = null; // ms
-
-  // TON UI
-  let tonConnectUI = null;
-
-  // server round
-  let roundId = null;
-
-  const COLORS = ["#ff4d4d","#ffcf3f","#3fe36b","#4d7dff","#c85cff","#ff62d4"];
-  const SHAPES = [
-    [[0,0]],
-    [[0,0],[1,0]],
-    [[0,0],[1,0],[2,0]],
-    [[0,0],[0,1],[0,2]],
-    [[0,0],[1,0],[0,1],[1,1]],
-    [[0,0],[1,0],[2,0],[3,0]],
-    [[0,0],[0,1],[1,1]],
-    [[1,0],[1,1],[0,1]],
-    [[0,0],[1,0],[2,0],[1,1]],
-    [[0,0],[0,1],[0,2],[1,2]],
-    [[1,0],[1,1],[1,2],[0,2]],
-    [[0,0],[1,0],[2,0],[3,0],[4,0]],
-    [[0,0],[0,1],[1,1],[1,2]],
-    [[1,0],[1,1],[0,1],[0,2]],
-    [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]],
-    [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2]],
+  // Colors (cyberpunk)
+  const palette = [
+    '#35f2ff', // cyan
+    '#ff3df2', // neon pink
+    '#9b5bff', // violet
+    '#6dff7b', // neon green
+    '#ffd34a', // warm yellow
+    '#4d7cff', // electric blue
   ];
 
-  // ===== UI helpers =====
-  function setScore(v){
-    score = v;
-    scoreEl.textContent = String(score);
+  const grid = Array.from({length:N},()=>Array(N).fill(null));
+  let pieces = [];
+  let dragging = null;
+
+  let score = 0;
+  let best = Number(localStorage.getItem('neon_bp_best') || 0);
+  let combo = 0;
+
+  const particles = [];
+  const flashes = [];
+  const floaters = [];
+
+  const elScore = document.getElementById('score');
+  const elBest = document.getElementById('best');
+  const comboEl = document.getElementById('combo');
+  const comboNumEl = document.getElementById('comboNum');
+  const over = document.getElementById('over');
+  const finalScore = document.getElementById('finalScore');
+
+  elBest.textContent = best;
+
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+
+  function shade(hex, amt){
+    hex=hex.replace('#','');
+    const n=parseInt(hex,16);
+    let r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+    const t=amt<0?0:255, p=Math.abs(amt);
+    r=Math.round((t-r)*p+r);
+    g=Math.round((t-g)*p+g);
+    b=Math.round((t-b)*p+b);
+    return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
   }
 
-  function setHint(msg){
-    ctrlHint.textContent = msg || "";
+  function roundedRect(x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
   }
 
+  // Neon "glass" block
+  function neonBlock(px,py,s,base,alpha=1,scale=1){
+    const pad = 5;
+    const w=(s-pad)*scale, h=(s-pad)*scale;
+    const x=px+(s-pad-w)/2, y=py+(s-pad-h)/2;
 
-  let moneyMode = null; // 'deposit' | 'withdraw' | 'stake'
-  function openMoneyModal(mode){
-    moneyMode = mode;
-    moneyAmountInput.value = "";
-    moneyOverlay.style.display = "grid";
-    if(mode === "deposit"){
-      moneyTitle.textContent = "Депозит";
-      moneyText.textContent = "Введите сумму депозита в TON и подтвердите перевод.";
-      moneyConfirmBtn.textContent = "Подтвердить";
-    } else if(mode === "withdraw"){
-      moneyTitle.textContent = "Вывод";
-      moneyText.textContent = "Введите сумму вывода в TON. Будет создана заявка (pending).";
-      moneyConfirmBtn.textContent = "Создать заявку";
-    } else {
-      moneyTitle.textContent = "Ставка";
-      moneyText.textContent = "Введите сумму ставки в TON. Ставка списывается с баланса и начинается раунд.";
-      moneyConfirmBtn.textContent = "Начать раунд";
-    }
-  }
-  function closeMoneyModal(){
-    moneyOverlay.style.display = "none";
-    moneyMode = null;
-  }
+    ctx.save();
+    ctx.globalAlpha = alpha;
 
+    // Outer neon glow
+    ctx.shadowColor = base;
+    ctx.shadowBlur = 22;
+    ctx.shadowOffsetY = 0;
 
-  function showToast(msg){
-    toastEl.textContent = msg;
-    toastEl.classList.add('show');
-    clearTimeout(showToast._t);
-    showToast._t = setTimeout(()=>toastEl.classList.remove('show'), 900);
-  }
+    // body gradient
+    const g = ctx.createLinearGradient(x,y,x,y+h);
+    g.addColorStop(0, 'rgba(255,255,255,.38)');
+    g.addColorStop(0.14, shade(base, 0.35));
+    g.addColorStop(0.60, base);
+    g.addColorStop(1, shade(base, -0.22));
 
-  function openModal(type){
-    overlay.classList.add('show');
-    if(type === 'gameover'){
-      modalTitle.textContent = "GAME OVER";
-      modalText.textContent = "Ходов больше нет.";
-      modalSecondary.style.display = "none";
-    } else {
-      modalTitle.textContent = "Новая игра?";
-      modalText.textContent = "Вы уверены начать новую игру?";
-      modalSecondary.style.display = "";
-    }
-  }
+    roundedRect(x,y,w,h,12*scale);
+    ctx.fillStyle = g;
+    ctx.fill();
 
-  function closeModal(){
-    overlay.classList.remove('show');
-  }
+    // inner glass
+    ctx.shadowBlur = 0;
+    const inset = 3*scale;
+    const g2 = ctx.createLinearGradient(x,y,x+w,y+h);
+    g2.addColorStop(0,'rgba(255,255,255,.45)');
+    g2.addColorStop(0.30,'rgba(255,255,255,.10)');
+    g2.addColorStop(1,'rgba(255,255,255,0)');
+    roundedRect(x+inset,y+inset,w-2*inset,h-2*inset,10*scale);
+    ctx.fillStyle = g2;
+    ctx.fill();
 
-  // ===== Board =====
-  function buildGrid(){
-    gridEl.innerHTML = "";
-    for(let y=0;y<N;y++){
-      for(let x=0;x<N;x++){
-        const c = document.createElement('div');
-        c.className = "cell";
-        c.dataset.x = x;
-        c.dataset.y = y;
-        gridEl.appendChild(c);
-      }
-    }
+    // rim
+    ctx.lineWidth = 2*scale;
+    ctx.strokeStyle = 'rgba(0,0,0,.25)';
+    ctx.stroke();
+
+    // top shine bar
+    ctx.globalAlpha = alpha*0.35;
+    roundedRect(x+inset*1.1,y+inset*1.1,w-2.2*inset,(h-2.2*inset)*0.42,10*scale);
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.fill();
+
+    ctx.restore();
   }
 
-  function renderBoard(){
-    const cells = gridEl.children;
-    let i = 0;
-    for(let y=0;y<N;y++){
-      for(let x=0;x<N;x++){
-        const el = cells[i++];
-        const col = board[y][x];
-        el.querySelectorAll('.tile').forEach(n => n.remove());
-        if(col){
-          const t = document.createElement('div');
-          t.className = "tile";
-          t.style.setProperty('--fill', col);
-          el.appendChild(t);
-        }
-      }
-    }
+  // ===== Shapes
+  const SHAPES = [
+    [{x:0,y:0}],
+    [{x:0,y:0},{x:1,y:0}],
+    [{x:0,y:0},{x:1,y:0},{x:2,y:0}],
+    [{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:3,y:0}],
+    [{x:0,y:0},{x:0,y:1},{x:0,y:2}],
+    [{x:0,y:0},{x:0,y:1},{x:0,y:2},{x:0,y:3}],
+    [{x:0,y:0},{x:1,y:0},{x:0,y:1},{x:1,y:1}],
+    [{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:0,y:1},{x:1,y:1},{x:2,y:1}],
+    [{x:0,y:0},{x:0,y:1},{x:0,y:2},{x:1,y:2}],
+    [{x:1,y:0},{x:1,y:1},{x:1,y:2},{x:0,y:2}],
+    [{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:1,y:1}],
+    [{x:0,y:1},{x:1,y:1},{x:2,y:1},{x:1,y:0}],
+    [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:2,y:1}],
+    [{x:0,y:1},{x:1,y:1},{x:1,y:0},{x:2,y:0}],
+  ];
+  function normalize(cells){
+    let minX=1e9,minY=1e9;
+    for(const c of cells){minX=Math.min(minX,c.x);minY=Math.min(minY,c.y);}
+    return cells.map(c=>({x:c.x-minX,y:c.y-minY}));
   }
-
-  function cryptoRandomId(){
-    if(window.crypto?.getRandomValues){
-      const a = new Uint32Array(1);
-      window.crypto.getRandomValues(a);
-      return "p" + a[0].toString(16);
-    }
-    return "p" + Math.random().toString(16).slice(2);
+  function bounds(cells){
+    let mx=0,my=0;
+    for(const c of cells){mx=Math.max(mx,c.x);my=Math.max(my,c.y);}
+    return {w:mx+1,h:my+1};
   }
-
-  function difficultyBias(){
-    if(score < 7000) return 0;
-    if(score < 15000) return 0.15;
-    return 0.25;
+  function newPiece(){
+    const shape = SHAPES[(Math.random()*SHAPES.length)|0];
+    return {cells: normalize(shape), color: palette[(Math.random()*palette.length)|0], id: Math.random().toString(36).slice(2)};
   }
+  function refillPieces(){ pieces = [newPiece(), newPiece(), newPiece()]; }
 
-  function randomPiece(){
-    const bias = difficultyBias();
-    const bySize = SHAPES.map(s => ({s, k:s.length}));
-    const big = bySize.filter(o => o.k >= 4).map(o=>o.s);
-    const pickFrom = (Math.random() < bias && big.length) ? big : SHAPES;
-    const shape = pickFrom[(Math.random()*pickFrom.length)|0];
-    const color = COLORS[(Math.random()*COLORS.length)|0];
-    return { shape, color, id: cryptoRandomId() };
-  }
-
-  function renderPieceInner(p, mode /* tray|ghost */){
-    const inner = document.createElement('div');
-    inner.className = "pieceInner";
-    inner.style.setProperty('--pcolor', p.color);
-
-    const coords = p.shape;
-    const xs = coords.map(c=>c[0]), ys = coords.map(c=>c[1]);
-    const minX = Math.min(...xs), minY = Math.min(...ys);
-    const norm = coords.map(([x,y]) => [x-minX, y-minY]);
-    const w = Math.max(...norm.map(c=>c[0])) + 1;
-    const h = Math.max(...norm.map(c=>c[1])) + 1;
-    const offX = Math.floor((5 - w)/2);
-    const offY = Math.floor((5 - h)/2);
-    const set = new Set(norm.map(([x,y]) => `${x},${y}`));
-
-    for(let gy=0;gy<5;gy++){
-      for(let gx=0;gx<5;gx++){
-        const key = `${gx-offX},${gy-offY}`;
-        const isBlock = set.has(key);
-        const b = document.createElement('div');
-        b.className = "pblock" + (isBlock ? (mode === 'ghost' ? " gblock" : "") : " empty");
-        if(isBlock){
-          b.style.background = p.color;
-          if(mode === 'tray'){
-            b.dataset.localX = String(gx-offX);
-            b.dataset.localY = String(gy-offY);
-          }
-        }
-        inner.appendChild(b);
-      }
-    }
-    return inner;
-  }
-
-  function renderTray(){
-    trayEl.innerHTML = "";
-    tray.forEach((p, idx) => {
-      const outer = document.createElement('div');
-      outer.className = "piece";
-      outer.dataset.pieceIndex = idx;
-
-      outer.appendChild(renderPieceInner(p, 'tray'));
-      trayEl.appendChild(outer);
-    });
-    updateTrayDisabledStates();
-  }
-
-  function refillTrayIfNeeded(){
-    if(tray.length === 0){
-      tray = [randomPiece(), randomPiece(), randomPiece()];
-      renderTray();
-    }
-  }
-
-  function canPlace(shape, ox, oy){
-    for(const [dx,dy] of shape){
-      const x = ox + dx;
-      const y = oy + dy;
-      if(x<0 || x>=N || y<0 || y>=N) return false;
-      if(board[y][x]) return false;
+  // ===== Rules
+  function canPlace(piece,gx,gy){
+    for(const c of piece.cells){
+      const x=gx+c.x, y=gy+c.y;
+      if(x<0||x>=N||y<0||y>=N) return false;
+      if(grid[y][x]) return false;
     }
     return true;
   }
 
-  function canPlaceSomewhere(piece){
-    for(let y=0;y<N;y++){
-      for(let x=0;x<N;x++){
-        if(canPlace(piece.shape, x, y)) return true;
-      }
+  function place(piece,gx,gy){
+    let placed=0;
+    for(const c of piece.cells){
+      const x=gx+c.x, y=gy+c.y;
+      grid[y][x]=piece.color;
+      placed++;
+      spawnDust(board.x+x*board.cell+board.cell/2, board.y+y*board.cell+board.cell/2, piece.color);
     }
-    return false;
+    score += placed*7 + 10;
+
+    const cleared = clearLines();
+    if(cleared>0){
+      combo = clamp(combo+1,1,999);
+      showCombo(combo);
+      score += cleared*150 + combo*35;
+    }else combo=0;
+
+    updateScore();
+    if(!hasAnyMove()) gameOver();
   }
 
-  function anyMoveAvailable(){
-    for(const p of tray){
-      if(canPlaceSomewhere(p)) return true;
-    }
-    return false;
-  }
-
-  function updateTrayDisabledStates(){
-    const nodes = trayEl.querySelectorAll('.piece');
-    tray.forEach((p, idx) => {
-      const can = canPlaceSomewhere(p);
-      nodes[idx]?.classList.toggle('disabled', !can);
-    });
-  }
-
-  function findClears(){
-    const fullRows = [];
-    const fullCols = [];
+  function clearLines(){
+    const rows=[], cols=[];
     for(let y=0;y<N;y++){
-      if(board[y].every(v=>!!v)) fullRows.push(y);
+      let ok=true; for(let x=0;x<N;x++) if(!grid[y][x]){ok=false;break;}
+      if(ok) rows.push(y);
     }
     for(let x=0;x<N;x++){
-      let ok = true;
-      for(let y=0;y<N;y++){ if(!board[y][x]) {ok=false; break;} }
-      if(ok) fullCols.push(x);
+      let ok=true; for(let y=0;y<N;y++) if(!grid[y][x]){ok=false;break;}
+      if(ok) cols.push(x);
     }
-    return { fullRows, fullCols };
-  }
+    if(!rows.length && !cols.length) return 0;
 
-  function applyClears(fullRows, fullCols){
-    for(const y of fullRows){
-      for(let x=0;x<N;x++) board[y][x] = null;
-    }
-    for(const x of fullCols){
-      for(let y=0;y<N;y++) board[y][x] = null;
-    }
-  }
+    // flash
+    for(const y of rows) flashes.push({x:board.x,y:board.y+y*board.cell,w:board.w,h:board.cell,t:0,d:260});
+    for(const x of cols) flashes.push({x:board.x+x*board.cell,y:board.y,w:board.cell,h:board.h,t:0,d:260});
 
-  function place(shape, color, ox, oy){
-    for(const [dx,dy] of shape){
-      board[oy+dy][ox+dx] = color;
-    }
-
-    const { fullRows, fullCols } = findClears();
-    const cleared = fullRows.length + fullCols.length;
-
-    if(cleared > 0){
-      applyClears(fullRows, fullCols);
-      comboStreak += 1;
-      const base = 50;
-      const points = base * cleared * comboStreak;
-      setScore(score + points);
-      showToast(`+${points}  x${comboStreak}`);
-    } else {
-      comboStreak = 0;
-    }
-
-    renderBoard();
-    saveRound();
-  }
-
-  // ===== Preview + smart hint =====
-  let previewCells = [];
-  let hintCells = [];
-  let hintLineCells = [];
-
-  function clearHints(){
-    for(const el of hintCells) el.classList.remove('hintPlace');
-    for(const el of hintLineCells) el.classList.remove('hintLine');
-    hintCells = [];
-    hintLineCells = [];
-  }
-
-  function clearPreview(){
-    for(const el of previewCells){
-      el.querySelectorAll('.ptile').forEach(n => n.remove());
-    }
-    previewCells = [];
-    clearHints();
-  }
-
-  function predictClearsIfPlaced(shape, ox, oy){
-    const placeSet = new Set();
-    for(const [dx,dy] of shape){
-      placeSet.add(`${ox+dx},${oy+dy}`);
-    }
-
-    const rows = [];
-    const cols = [];
-
-    for(let y=0;y<N;y++){
-      let full = true;
+    for(const y of rows){
       for(let x=0;x<N;x++){
-        if(!board[y][x] && !placeSet.has(`${x},${y}`)){ full = false; break; }
+        const col=grid[y][x]; grid[y][x]=null;
+        spawnBurst(board.x+x*board.cell+board.cell/2, board.y+y*board.cell+board.cell/2, col||'#fff', 18);
       }
-      if(full) rows.push(y);
     }
-    for(let x=0;x<N;x++){
-      let full = true;
+    for(const x of cols){
       for(let y=0;y<N;y++){
-        if(!board[y][x] && !placeSet.has(`${x},${y}`)){ full = false; break; }
-      }
-      if(full) cols.push(x);
-    }
-    return { rows, cols, placeSet };
-  }
-
-  function applySmartHighlight(ox, oy, shape){
-    const { rows, cols, placeSet } = predictClearsIfPlaced(shape, ox, oy);
-
-    for(const key of placeSet){
-      const [xStr,yStr] = key.split(',');
-      const x = Number(xStr), y = Number(yStr);
-      const cell = gridEl.children[y*N + x];
-      hintCells.push(cell);
-      cell.classList.add('hintPlace');
-    }
-
-    if(rows.length || cols.length){
-      const set = new Set();
-      for(const y of rows){ for(let x=0;x<N;x++) set.add(`${x},${y}`); }
-      for(const x of cols){ for(let y=0;y<N;y++) set.add(`${x},${y}`); }
-      for(const key of set){
-        const [xStr,yStr] = key.split(',');
-        const x = Number(xStr), y = Number(yStr);
-        const cell = gridEl.children[y*N + x];
-        hintLineCells.push(cell);
-        cell.classList.add('hintLine');
-      }
-    }
-  }
-
-  function showPreview(ox, oy, shape, color){
-    clearPreview();
-    for(const [dx,dy] of shape){
-      const x = ox + dx, y = oy + dy;
-      const cell = gridEl.children[y*N + x];
-      previewCells.push(cell);
-      const p = document.createElement('div');
-      p.className = "ptile";
-      p.style.setProperty('--fill', color);
-      cell.appendChild(p);
-    }
-    applySmartHighlight(ox, oy, shape);
-  }
-
-  // ===== Dragging =====
-  let drag = null;
-  let rafPending = false;
-  let lastX = 0, lastY = 0;
-
-  function getCellFromClientXY(clientX, clientY){
-    const rect = gridEl.getBoundingClientRect();
-    if(clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
-
-    const firstCell = gridEl.children[0];
-    if(!firstCell) return null;
-    const cellRect = firstCell.getBoundingClientRect();
-    const gridStyle = getComputedStyle(gridEl);
-    const gap = parseFloat(gridStyle.gap || gridStyle.columnGap || "0") || 0;
-
-    const stepX = cellRect.width + gap;
-    const stepY = cellRect.height + gap;
-
-    const rx = clientX - rect.left;
-    const ry = clientY - rect.top;
-
-    const gx = Math.floor(rx / stepX);
-    const gy = Math.floor(ry / stepY);
-
-    if(gx < 0 || gx >= N || gy < 0 || gy >= N) return null;
-    return { gx, gy };
-  }
-
-  function snapGhostToCell(gx, gy){
-    const cell = gridEl.children[gy*N + gx];
-    const r = cell.getBoundingClientRect();
-    const x = r.left + r.width/2;
-    const y = r.top + r.height/2 - 22; // slightly above finger
-    ghostEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
-  }
-
-  function updateGhostPos(clientX, clientY){
-    if(!drag) return;
-    const cellInfo = getCellFromClientXY(clientX, clientY);
-    if(cellInfo){
-      snapGhostToCell(cellInfo.gx, cellInfo.gy);
-    } else {
-      ghostEl.style.transform = `translate(${clientX + 18}px, ${clientY - 90}px)`;
-    }
-  }
-
-  function scheduleMove(x,y){
-    lastX = x; lastY = y;
-    if(rafPending) return;
-    rafPending = true;
-    requestAnimationFrame(() => {
-      rafPending = false;
-      if(!drag) return;
-
-      updateGhostPos(lastX, lastY);
-
-      const cellInfo = getCellFromClientXY(lastX, lastY);
-      if(cellInfo){
-        const ox = cellInfo.gx - drag.grabX;
-        const oy = cellInfo.gy - drag.grabY;
-        if(canPlace(drag.shape, ox, oy)) showPreview(ox, oy, drag.shape, drag.color);
-        else clearPreview();
-      } else {
-        clearPreview();
-      }
-    });
-  }
-
-  function findPieceIndexFromEventTarget(t){
-    const pieceEl = t.closest?.('.piece');
-    if(!pieceEl) return null;
-    const idx = Number(pieceEl.dataset.pieceIndex);
-    return Number.isFinite(idx) ? idx : null;
-  }
-
-  function startDrag(pieceIndex, clientX, clientY, pointerId, captureEl){
-    const p = tray[pieceIndex];
-    if(!p || isGameOver) return;
-
-    let grabX = 0, grabY = 0;
-
-    const target = document.elementFromPoint(clientX, clientY);
-    const b = (target && target.classList && target.classList.contains('pblock') && !target.classList.contains('empty')) ? target : null;
-    if(b && b.dataset.localX != null){
-      grabX = Number(b.dataset.localX);
-      grabY = Number(b.dataset.localY);
-    } else {
-      const xs = p.shape.map(c=>c[0]);
-      const ys = p.shape.map(c=>c[1]);
-      grabX = Math.min(...xs);
-      grabY = Math.min(...ys);
-    }
-
-    drag = { pieceIndex, shape:p.shape, color:p.color, grabX, grabY, pointerId };
-
-    trayEl.querySelectorAll('.piece').forEach(n => n.classList.remove('isDragging'));
-    trayEl.children[pieceIndex]?.classList.add('isDragging');
-
-    try { captureEl.setPointerCapture(pointerId); } catch {}
-
-    ghostEl.innerHTML = "";
-    ghostEl.appendChild(renderPieceInner(p, 'ghost'));
-
-    scheduleMove(clientX, clientY);
-  }
-
-  function endDragCleanup(){
-    trayEl.querySelectorAll('.piece').forEach(n => n.classList.remove('isDragging'));
-    drag = null;
-    ghostEl.innerHTML = "";
-    ghostEl.style.transform = "translate(-9999px,-9999px)";
-    clearPreview();
-  }
-
-  function maybeGameOver(){
-    updateTrayDisabledStates();
-    if(tray.length > 0 && !anyMoveAvailable()){
-      isGameOver = true;
-      openModal('gameover');
-    }
-  }
-
-  trayEl.addEventListener('pointerdown', (e) => {
-    if(isGameOver) return;
-    const idx = findPieceIndexFromEventTarget(e.target);
-    if(idx == null) return;
-
-    if(!canPlaceSomewhere(tray[idx])) {
-      showToast("Нет места");
-      return;
-    }
-    startDrag(idx, e.clientX, e.clientY, e.pointerId, e.target);
-    e.preventDefault();
-  }, {passive:false});
-
-  document.addEventListener('pointermove', (e) => {
-    if(!drag) return;
-    scheduleMove(e.clientX, e.clientY);
-    e.preventDefault();
-  }, {passive:false});
-
-  document.addEventListener('pointerup', (e) => {
-    if(!drag) return;
-
-    const cellInfo = getCellFromClientXY(e.clientX, e.clientY);
-    let placed = false;
-
-    if(cellInfo){
-      const ox = cellInfo.gx - drag.grabX;
-      const oy = cellInfo.gy - drag.grabY;
-      if(canPlace(drag.shape, ox, oy)){
-        place(drag.shape, drag.color, ox, oy);
-        tray.splice(drag.pieceIndex, 1);
-        renderTray();
-        refillTrayIfNeeded();
-        placed = true;
-        maybeGameOver();
-        saveRound();
-      }
-    }
-
-    if(!placed) showToast("Нельзя");
-    endDragCleanup();
-    e.preventDefault();
-  }, {passive:false});
-
-  // ===== Local round cache (1 hour) =====
-  const ROUND_TTL_MS = 60 * 60 * 1000;
-  const ROUND_KEY = "bb_round_v2";
-
-  function nowMs(){ return Date.now(); }
-
-  function saveRound(){
-    try{
-      const data = {
-        v: 2,
-        savedAt: nowMs(),
-        board,
-        tray,
-        score,
-        comboStreak,
-        isGameOver,
-        depositNanotons: roundDepositNanotons.toString(),
-        startedAt: roundStartedAt
-      };
-      localStorage.setItem(ROUND_KEY, JSON.stringify(data));
-    } catch {}
-    scheduleServerSave();
-  }
-
-  function clearSavedRound(){
-    try{ localStorage.removeItem(ROUND_KEY); } catch {}
-  }
-
-  function loadRound(){
-    try{
-      const raw = localStorage.getItem(ROUND_KEY);
-      if(!raw) return false;
-      const data = JSON.parse(raw);
-      if(!data || data.v !== 2) return false;
-      if(!data.savedAt || nowMs() - data.savedAt > ROUND_TTL_MS) return false;
-
-      board = data.board || board;
-      tray = data.tray || tray;
-      comboStreak = Number(data.comboStreak || 0);
-      isGameOver = !!data.isGameOver;
-      roundDepositNanotons = BigInt(data.depositNanotons || "0");
-      roundStartedAt = data.startedAt || null;
-      setScore(Number(data.score || 0));
-
-      renderBoard();
-      renderTray();
-      if(isGameOver) openModal('gameover');
-      setHint("Раунд восстановлен (локально, до 1 часа).");
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  // ===== Backend (Vercel API + Upstash) =====
-  async function apiPost(url, data){
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data || {})
-    });
-    return await r.json();
-  }
-
-  function requireWalletOrHint(){
-    if(!tonConnectUI || !tonConnectUI.wallet || !tonConnectUI.wallet.account?.address){
-      setHint("Подключи TON кошелёк.");
-      return null;
-    }
-    return tonConnectUI.wallet.account.address;
-  }
-
-  async function refreshInternalBalance(address){
-    try{
-      const r = await fetch(`/api/balance?address=${encodeURIComponent(address)}`);
-      const j = await r.json();
-      if(j && j.ok){
-        const nano = BigInt(j.balanceNano || "0");
-        const ton = Number(nano) / 1e9;
-        tonBalanceEl.textContent = (Math.floor(ton*1000)/1000).toFixed(3) + " TON";
-      }
-    } catch {}
-  }
-
-  async function upsertUserAndLoadBalance(address){
-    try{ await apiPost("/api/user/upsert", { tonAddress: address }); } catch {}
-    await refreshInternalBalance(address);
-  }
-
-  async function createCommentPayloadBase64(text){
-    if(!window.TonWeb) return null;
-    const cell = new TonWeb.boc.Cell();
-    cell.bits.writeUint(0, 32);
-    cell.bits.writeString(text);
-    const boc = await cell.toBoc(false);
-    return TonWeb.utils.bytesToBase64(boc);
-  }
-
-  async function loadServerRoundIfAny(address){
-    try{
-      const r = await fetch(`/api/round/get?address=${encodeURIComponent(address)}`);
-      const j = await r.json();
-      if(j && j.ok && j.round && !j.round.ended){
-        roundId = j.round.id;
-        if(j.round.state){
-          const st = j.round.state;
-          board = st.board || board;
-          tray = st.tray || tray;
-          comboStreak = Number(st.comboStreak || 0);
-          isGameOver = !!st.isGameOver;
-          setScore(Number(st.score || 0));
-          renderBoard();
-          renderTray();
-          setHint("Раунд восстановлен (сервер, до 1 часа).");
+        if(grid[y][x]){
+          const col=grid[y][x]; grid[y][x]=null;
+          spawnBurst(board.x+x*board.cell+board.cell/2, board.y+y*board.cell+board.cell/2, col, 18);
         }
-        return true;
       }
-    } catch {}
+    }
+    floaters.push({x:W/2,y:board.y+board.h/2,text:`+${(rows.length+cols.length)*200}`,t:0});
+    return rows.length+cols.length;
+  }
+
+  function hasAnyMove(){
+    for(const p of pieces){
+      if(!p) continue;
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(canPlace(p,x,y)) return true;
+    }
     return false;
   }
 
-  let saveTimer = null;
-  function scheduleServerSave(){
-    if(!roundId) return;
-    if(saveTimer) return;
-    saveTimer = setTimeout(async () => {
-      saveTimer = null;
-      const addr = requireWalletOrHint();
-      if(!addr) return;
-      try{
-        await apiPost("/api/round/save", {
-          roundId,
-          tonAddress: addr,
-          score,
-          state: { board, tray, comboStreak, isGameOver, score }
-        });
-      } catch {}
-    }, 1200);
+  // ===== FX
+  function spawnDust(x,y,col){
+    for(let i=0;i<4;i++) particles.push({x,y,vx:rnd(-.7,.7),vy:rnd(-1.4,-.2),r:rnd(1.2,2.6),a:1,col,life:rnd(240,460)});
   }
-
-  
-  // ===== Actions =====
-  connectWalletBtn.addEventListener('click', async () => {
-    if(!tonConnectUI){
-      setHint("TON UI ещё не готов.");
-      return;
-    }
-    try{
-      tonConnectUI.openModal();
-    } catch {
-      setHint("Не удалось открыть окно подключения.");
-    }
-  });
-
-  depositOpenBtn.addEventListener('click', () => {
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-    openMoneyModal("deposit");
-  });
-
-  withdrawOpenBtn.addEventListener('click', () => {
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-    openMoneyModal("withdraw");
-  });
-
-  startRoundBtn.addEventListener('click', () => {
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-    openMoneyModal("stake");
-  });
-
-  startGameBtn.addEventListener('click', () => {
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-    openMoneyModal("stake");
-  });
-
-  moneyCancelBtn.addEventListener('click', closeMoneyModal);
-  moneyOverlay.addEventListener('pointerdown', (e) => {
-    if(e.target === moneyOverlay) closeMoneyModal();
-  });
-
-  moneyConfirmBtn.addEventListener('click', async () => {
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-
-    const amt = tonStrToNanotons(moneyAmountInput.value || "0");
-    if(amt <= 0n){
-      setHint("Введите сумму (например 0.1).");
-      return;
-    }
-
-    if(moneyMode === "deposit"){
-      closeMoneyModal();
-      setHint("");
-
-      // 1) create deposit id on backend
-      let dep;
-      try{
-        dep = await apiPost("/api/deposit/create", { tonAddress: addr, amountNano: amt.toString() });
-      } catch {
-        setHint("Сервер депозита недоступен.");
-        return;
-      }
-      if(!dep || !dep.ok || !dep.depositId || !dep.houseAddress){
-        setHint("Ошибка создания депозита.");
-        return;
-      }
-
-      const depositId = dep.depositId;
-      const houseAddress = dep.houseAddress;
-      const payloadB64 = await createCommentPayloadBase64(depositId);
-
-      // 2) send TON tx
-      try{
-        await tonConnectUI.sendTransaction({
-          validUntil: Math.floor(Date.now()/1000) + 300,
-          messages: [{
-            address: houseAddress,
-            amount: amt.toString(),
-            ...(payloadB64 ? { payload: payloadB64 } : {})
-          }]
-        });
-        setHint("Транзакция отправлена. Проверяю депозит…");
-      } catch {
-        setHint("Депозит отменён или ошибка кошелька.");
-        return;
-      }
-
-      // 3) verify (poll)
-      let confirmed = false;
-      for(let i=0;i<12;i++){
-        await new Promise(r=>setTimeout(r, 1700));
-        try{
-          const v = await apiPost("/api/deposit/verify", { depositId });
-          if(v && v.ok && v.status === "confirmed"){ confirmed = true; break; }
-        } catch {}
-      }
-      if(!confirmed){
-        setHint("Депозит пока не подтверждён. Баланс обновится после подтверждения.");
-        return;
-      }
-
-      setHint("Депозит подтверждён. Баланс обновлён.");
-      await upsertUserAndLoadBalance(addr);
-      return;
-    }
-
-    if(moneyMode === "withdraw"){
-      closeMoneyModal();
-      setHint("");
-
-      try{
-        const j = await apiPost("/api/withdraw/request", { tonAddress: addr, amountNano: amt.toString() });
-        if(j && j.ok){
-          setHint(`Заявка на вывод: ${j.withdrawId} (pending)`);
-          await refreshInternalBalance(addr);
-        } else {
-          setHint(j?.error === "insufficient_balance" ? "Недостаточно баланса." : "Ошибка вывода.");
-        }
-      } catch {
-        setHint("Сервер недоступен (withdraw).");
-      }
-      return;
-    }
-
-    // stake / start round
-    closeMoneyModal();
-    setHint("");
-
-    // NOTE: backend currently doesn't reserve stake; we store stake locally and settle via /api/round/end.
-    // Next step: add /api/round/reserve to move balance->locked.
-    try{
-      const rr = await apiPost("/api/round/start", { tonAddress: addr });
-      if(rr && rr.ok && rr.roundId){
-        roundId = rr.roundId;
-        roundDepositNanotons = amt;
-        roundStartedAt = nowMs();
-        newGame(true);
-        setHint("Раунд начат.");
-        // Save initial state
-        saveRound();
-      } else {
-        setHint("Не удалось начать раунд (сервер).");
-      }
-    } catch {
-      setHint("Сервер недоступен (start round).");
-    }
-  });
-
-    const addr = requireWalletOrHint();
-    if(!addr) return;
-
-    const amt = tonStrToNanotons(amountInput.value || "0");
-    if(amt <= 0n){
-      setHint("Введи сумму для вывода.");
-      return;
-    }
-
-    try{
-      const j = await apiPost("/api/withdraw/request", { tonAddress: addr, amountNano: amt.toString() });
-      if(j && j.ok){
-        setHint(`Заявка на вывод: ${j.withdrawId} (pending)`);
-        await refreshInternalBalance(addr);
-      } else {
-        setHint(j?.error === "insufficient_balance" ? "Недостаточно баланса." : "Ошибка вывода.");
-      }
-    } catch {
-      setHint("Сервер недоступен (withdraw).");
-    }
-  });
-
-  // ===== Payout helpers (client-side for display only) =====
-  function payoutMultiplierFromScore(s){
-    let mult = 0;
-    if(s <= 0) return 0;
-    const a = Math.min(s, 10000);
-    mult += Math.floor(a / 1000) * 0.1;
-    if(s > 10000){
-      const b = Math.min(s, 15000) - 10000;
-      mult += Math.floor(b / 1000) * 0.2;
-    }
-    if(s > 15000){
-      const c = Math.min(s, 30000) - 15000;
-      mult += Math.floor(c / 1000) * 0.3;
-    }
-    if(s > 30000){
-      const d = s - 30000;
-      mult += Math.floor(d / 1000) * 0.3;
-    }
-    return Math.round(mult * 1000) / 1000;
-  }
-
-  function nanotonsToTonStr(n){
-    const ton = Number(n) / 1e9;
-    return (Math.floor(ton*1000)/1000).toFixed(3);
-  }
-
-  function tonStrToNanotons(str){
-    const v = Number(String(str).replace(",", "."));
-    if(!Number.isFinite(v) || v <= 0) return 0n;
-    return BigInt(Math.round(v * 1e9));
-  }
-
-  // ===== Buttons / modal =====
-  newGameBtn.addEventListener('click', () => {
-    if(isGameOver){
-      newGame(false);
-      return;
-    }
-    openModal('confirm');
-  });
-
-  modalPrimary.addEventListener('click', () => {
-    closeModal();
-    newGame(false);
-  });
-
-  modalSecondary.addEventListener('click', () => {
-    closeModal();
-  });
-
-  overlay.addEventListener('pointerdown', (e) => {
-    if(e.target === overlay && !isGameOver) closeModal();
-  });
-
-  function newGame(resetDeposit){
-    isGameOver = false;
-    closeModal();
-    board = Array.from({length:N}, () => Array(N).fill(null));
-    tray = [randomPiece(), randomPiece(), randomPiece()];
-    comboStreak = 0;
-    if(resetDeposit){
-      // keep deposit for active server round
-    } else {
-      roundDepositNanotons = 0n;
-      roundStartedAt = null;
-      roundId = null;
-    }
-    setScore(0);
-    renderBoard();
-    renderTray();
-    saveRound();
-    setHint("");
-  }
-
-  // ===== TonConnect init =====
-  async function initTonConnect(){
-    const TonConnectUINamespace = window.TON_CONNECT_UI || window.TonConnectUI;
-    const TonConnectUIClass = TonConnectUINamespace?.TonConnectUI || TonConnectUINamespace;
-    if(!TonConnectUIClass){
-      tonBalanceEl.textContent = "TON недоступен";
-      return;
-    }
-
-    tonConnectUI = new TonConnectUIClass({
-      manifestUrl: location.origin + "/tonconnect-manifest.json",
-      buttonRootId: "tonconnect-button"
-    });
-
-    try { await tonConnectUI.connector.restoreConnection(); } catch {}
-
-    tonConnectUI.onStatusChange(async (wallet) => {
-      if(wallet){
-        const addr = wallet.account?.address || "";
-        tonAddrEl.textContent = addr ? (addr.slice(0,6) + "…" + addr.slice(-6)) : "";
-        await upsertUserAndLoadBalance(addr);
-        await loadServerRoundIfAny(addr);
-      } else {
-        tonAddrEl.textContent = "";
-        tonBalanceEl.textContent = "—";
-      }
-    });
-
-    const w = tonConnectUI.wallet;
-    if(w?.account?.address){
-      tonAddrEl.textContent = w.account.address.slice(0,6) + "…" + w.account.address.slice(-6);
-      await upsertUserAndLoadBalance(w.account.address);
-      await loadServerRoundIfAny(w.account.address);
+  function spawnBurst(x,y,col,count=20){
+    for(let i=0;i<count;i++){
+      const a=rnd(0,Math.PI*2), sp=rnd(1.0,3.4);
+      particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-rnd(0,1.3),r:rnd(1.6,3.6),a:1,col,life:rnd(280,700)});
     }
   }
 
-  // init
-  buildGrid();
-  initTonConnect();
-  if(!loadRound()){
-    tray = [randomPiece(), randomPiece(), randomPiece()];
-    renderBoard();
-    renderTray();
+  // ===== Draw
+  function drawBoardFrame(){
+    const fx = board.x-20, fy = board.y-20, fw = board.w+40, fh = board.h+40;
+
+    // base frame
+    ctx.save();
+    ctx.shadowColor='rgba(0,0,0,.6)';
+    ctx.shadowBlur=24;
+    ctx.shadowOffsetY=10;
+
+    const g = ctx.createLinearGradient(fx,fy,fx,fy+fh);
+    g.addColorStop(0,'#0c1433');
+    g.addColorStop(1,'#070a1c');
+    roundedRect(fx,fy,fw,fh,26);
+    ctx.fillStyle=g;
+    ctx.fill();
+
+    // neon edge
+    ctx.shadowBlur = 0;
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = 'rgba(53,242,255,.22)';
+    ctx.stroke();
+
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = 'rgba(255,61,242,.16)';
+    roundedRect(fx+6,fy+6,fw-12,fh-12,22);
+    ctx.stroke();
+
+    // inner panel
+    const px = board.x-6, py=board.y-6, pw=board.w+12, ph=board.h+12;
+    const g2 = ctx.createLinearGradient(px,py,px,py+ph);
+    g2.addColorStop(0,'rgba(255,255,255,.06)');
+    g2.addColorStop(1,'rgba(0,0,0,.18)');
+    roundedRect(px,py,pw,ph,22);
+    ctx.fillStyle = g2;
+    ctx.fill();
+
+    // glossy top sheen
+    ctx.globalAlpha = 0.12;
+    roundedRect(px+10, py+10, pw-20, (ph-20)*0.22, 18);
+    ctx.fillStyle = 'rgba(255,255,255,.28)';
+    ctx.fill();
+
+    ctx.restore();
   }
+
+  function drawGridCells(){
+    // Uniform cell color like your screenshot (no checkerboard)
+    const bg = 'rgba(255,255,255,.035)';
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++){
+        const px=board.x+x*board.cell;
+        const py=board.y+y*board.cell;
+        ctx.fillStyle = bg;
+        roundedRect(px+7, py+7, board.cell-14, board.cell-14, 14);
+        ctx.fill();
+      }
+    }
+  }
+
+  function drawPlaced(){
+    for(let y=0;y<N;y++){
+      for(let x=0;x<N;x++){
+        const col=grid[y][x];
+        if(!col) continue;
+        neonBlock(board.x+x*board.cell+3, board.y+y*board.cell+3, board.cell-6, col, 1, 1);
+      }
+    }
+  }
+
+  function drawTray(){
+    // subtle tray glow band so pieces look "anchored" and not floating off-screen
+    ctx.save();
+    const bandY = tray.y + 20;
+    const g = ctx.createLinearGradient(0, bandY, 0, tray.y+tray.h);
+    g.addColorStop(0, 'rgba(255,255,255,.06)');
+    g.addColorStop(1, 'rgba(0,0,0,.18)');
+    ctx.fillStyle = g;
+    roundedRect(28, tray.y+18, W-56, tray.h-36, 22);
+    ctx.fill();
+
+    // neon rim
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(53,242,255,.18)';
+    roundedRect(28, tray.y+18, W-56, tray.h-36, 22);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function pieceSlots(){
+    // Always inside tray bounds (fix overlap)
+    const cy = tray.y + tray.h/2 + 10;
+    return [
+      {cx: W*0.22, cy},
+      {cx: W*0.50, cy},
+      {cx: W*0.78, cy},
+    ];
+  }
+
+  function drawPieceAt(piece,cx,cy,ghost=false){
+    const b=bounds(piece.cells);
+    const w=b.w*board.cell, h=b.h*board.cell;
+    const ox=cx-w/2, oy=cy-h/2;
+    const a=ghost?0.35:1;
+
+    // base glow blob
+    if(!ghost){
+      ctx.save();
+      ctx.globalAlpha = 0.12;
+      ctx.fillStyle = piece.color;
+      roundedRect(ox+12, oy+14, w-24, h-28, 18);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    for(const c of piece.cells){
+      neonBlock(ox + c.x*board.cell + 3, oy + c.y*board.cell + 3, board.cell-6, piece.color, a, 1);
+    }
+  }
+
+  function drawPieces(){
+    const slots = pieceSlots();
+    for(let i=0;i<3;i++){
+      const p=pieces[i];
+      if(!p) continue;
+      if(dragging && dragging.idx===i) continue;
+      drawPieceAt(p, slots[i].cx, slots[i].cy, false);
+    }
+  }
+
+  function drawDragging(){
+    if(!dragging) return;
+
+    // snap preview
+    if(dragging.valid && dragging.snapX!=null){
+      for(const c of dragging.piece.cells){
+        const x=dragging.snapX+c.x, y=dragging.snapY+c.y;
+        neonBlock(board.x+x*board.cell+3, board.y+y*board.cell+3, board.cell-6, dragging.piece.color, 0.28, 1);
+      }
+    }
+    drawPieceAt(dragging.piece, dragging.px, dragging.py, false);
+  }
+
+  function drawFlashes(dt){
+    for(let i=flashes.length-1;i>=0;i--){
+      const f=flashes[i];
+      f.t+=dt;
+      const p=f.t/f.d;
+      const a=p<.5?p/.5:1-(p-.5)/.5;
+      ctx.save();
+      ctx.globalAlpha = a*0.70;
+      ctx.fillStyle = 'rgba(53,242,255,.55)';
+      roundedRect(f.x+10,f.y+10,f.w-20,f.h-20,18);
+      ctx.fill();
+      ctx.globalAlpha = a*0.50;
+      ctx.fillStyle = 'rgba(255,61,242,.35)';
+      roundedRect(f.x+16,f.y+16,f.w-32,f.h-32,16);
+      ctx.fill();
+      ctx.restore();
+      if(f.t>=f.d) flashes.splice(i,1);
+    }
+  }
+
+  function drawParticles(dt){
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i];
+      p.life-=dt;
+      p.x += p.vx*dt*0.06;
+      p.y += p.vy*dt*0.06;
+      p.vy += 0.012*dt;
+      p.a = Math.max(0, p.life/700);
+
+      ctx.save();
+      ctx.globalAlpha = p.a;
+      ctx.shadowColor = p.col;
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = p.col;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+      ctx.restore();
+
+      if(p.life<=0) particles.splice(i,1);
+    }
+  }
+
+  function drawFloaters(dt){
+    for(let i=floaters.length-1;i>=0;i--){
+      const f=floaters[i];
+      f.t+=dt;
+      const a=Math.max(0,1-f.t/740);
+      ctx.save();
+      ctx.globalAlpha=a;
+      ctx.fillStyle='#fff';
+      ctx.font='1000 28px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(0,0,0,.45)';
+      ctx.shadowBlur=18;
+      ctx.fillText(f.text,f.x,f.y - f.t*0.06);
+      ctx.restore();
+      if(f.t>=740) floaters.splice(i,1);
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    drawBoardFrame();
+    drawGridCells();
+    drawPlaced();
+    drawTray();
+    drawPieces();
+    drawDragging();
+  }
+
+  // ===== Input
+  function getPointerPos(e){
+    const r=canvas.getBoundingClientRect();
+    return {x:(e.clientX-r.left)*(canvas.width/r.width),
+            y:(e.clientY-r.top)*(canvas.height/r.height)};
+  }
+  function inTray(px,py){ return py >= tray.y && py <= tray.y+tray.h; }
+
+  function pickPieceAt(x,y){
+    const slots = pieceSlots();
+    for(let i=0;i<3;i++){
+      const p=pieces[i]; if(!p) continue;
+      const b=bounds(p.cells);
+      const w=b.w*board.cell, h=b.h*board.cell;
+      const left=slots[i].cx-w/2, top=slots[i].cy-h/2;
+      if(x>=left && x<=left+w && y>=top && y<=top+h) return i;
+    }
+    return -1;
+  }
+
+  function pxToCell(px,py){
+    return {cx:Math.floor((px-board.x)/board.cell), cy:Math.floor((py-board.y)/board.cell)};
+  }
+  function inBoard(px,py){
+    return px>=board.x && px<board.x+board.w && py>=board.y && py<board.y+board.h;
+  }
+
+  function startDrag(idx,x,y){
+    const piece=pieces[idx]; if(!piece) return;
+    dragging={idx,piece,px:x,py:y,ox:0,oy:0,valid:false,snapX:null,snapY:null};
+    // keep finger offset relative to piece's visual center
+    const slots = pieceSlots();
+    dragging.ox = x - slots[idx].cx;
+    dragging.oy = y - slots[idx].cy;
+    navigator.vibrate?.(8);
+  }
+  function updateDrag(x,y){
+    if(!dragging) return;
+    dragging.px = x - dragging.ox;
+    dragging.py = y - dragging.oy;
+
+    if(inBoard(dragging.px, dragging.py)){
+      const {cx,cy} = pxToCell(dragging.px, dragging.py);
+      const b=bounds(dragging.piece.cells);
+      const gx = clamp(cx - Math.floor(b.w/2), 0, N-1);
+      const gy = clamp(cy - Math.floor(b.h/2), 0, N-1);
+      dragging.valid = canPlace(dragging.piece, gx, gy);
+      dragging.snapX=gx; dragging.snapY=gy;
+    }else{
+      dragging.valid=false;
+      dragging.snapX=dragging.snapY=null;
+    }
+  }
+  function endDrag(){
+    if(!dragging) return;
+    const {piece,idx,valid,snapX,snapY} = dragging;
+    if(valid && snapX!=null){
+      place(piece,snapX,snapY);
+      pieces[idx]=null;
+      if(pieces.every(p=>p===null)){
+        refillPieces();
+        if(!hasAnyMove()) gameOver();
+      }
+    }
+    dragging=null;
+  }
+
+  let down=false;
+  canvas.addEventListener('pointerdown', (e)=>{
+    const p=getPointerPos(e);
+    down=true;
+    canvas.setPointerCapture(e.pointerId);
+    const idx=pickPieceAt(p.x,p.y);
+    if(idx>=0) startDrag(idx,p.x,p.y);
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    if(!down) return;
+    const p=getPointerPos(e);
+    if(dragging) updateDrag(p.x,p.y);
+  });
+  canvas.addEventListener('pointerup', ()=>{down=false; endDrag();});
+  canvas.addEventListener('pointercancel', ()=>{down=false; endDrag();});
+
+  // ===== Combo
+  let comboTimer=0;
+  function showCombo(n){
+    comboNumEl.textContent = String(n);
+    comboEl.classList.remove('show');
+    void comboEl.offsetWidth;
+    comboEl.classList.add('show');
+    clearTimeout(comboTimer);
+    comboTimer=setTimeout(()=>comboEl.classList.remove('show'),720);
+  }
+
+  // ===== Score / Over
+  function updateScore(){
+    elScore.textContent = score;
+    if(score>best){
+      best=score;
+      localStorage.setItem('neon_bp_best', String(best));
+      elBest.textContent = best;
+    }
+  }
+  function gameOver(){
+    finalScore.textContent = score;
+    over.classList.add('show');
+  }
+  function reset(){
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++) grid[y][x]=null;
+    score=0; combo=0;
+    particles.length=0; flashes.length=0; floaters.length=0;
+    refillPieces();
+    updateScore();
+    over.classList.remove('show');
+  }
+
+  document.getElementById('btnNew').addEventListener('click', reset);
+  document.getElementById('btnRestart').addEventListener('click', reset);
+  document.getElementById('btnClose').addEventListener('click', ()=>over.classList.remove('show'));
+
+  // ===== Seed: a few blocks so it doesn't look empty (optional)
+  function seed(){
+    const demo = [
+      {x:2,y:2,c:1},{x:3,y:2,c:1},{x:3,y:3,c:1},{x:4,y:3,c:1},
+      {x:1,y:4,c:0},{x:2,y:4,c:0},{x:3,y:4,c:0},{x:2,y:5,c:0},
+      {x:5,y:5,c:5},{x:6,y:5,c:5},{x:7,y:5,c:5},{x:6,y:6,c:5},
+    ];
+    for(const b of demo){
+      if(b.x>=0 && b.x<N && b.y>=0 && b.y<N) grid[b.y][b.x] = palette[b.c];
+    }
+  }
+
+  // Init
+  refillPieces();
+  // seed(); // если хочешь пустое поле как на скрине — оставь выключенным
+  updateScore();
+
+  // Loop
+  let last=performance.now();
+  function tick(now){
+    const dt=now-last; last=now;
+    draw();
+    drawFlashes(dt);
+    drawParticles(dt);
+    drawFloaters(dt);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 })();
 </script>
 </body>
