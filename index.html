@@ -868,14 +868,7 @@
     applySmartHighlight(ox, oy, shape, color);
   }
 
-
   // Ghost/probe
-    const el = document.elementFromPoint(x, y);
-    if(!el) return null;
-    if(el.classList?.contains('cell')) return el;
-    return el.closest?.('.cell') || null;
-  }
-
   function updateGhostPos(clientX, clientY){
     if(!drag) return;
     const cellInfo = getCellFromClientXY(clientX, clientY);
