@@ -113,6 +113,53 @@
     }
     button:active{transform: translateY(1px); box-shadow: 0 5px 0 rgba(0,0,0,.14)}
 
+
+    .bottomBar{
+      display:flex;
+      justify-content:center;
+      padding: 6px 6px 2px;
+    }
+    .bottomBar button{
+      padding: 12px 18px;
+      font-size: 16px;
+    }
+
+    .balanceBox{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:4px;
+      margin-right: 6px;
+      min-width: 160px;
+    }
+    .balanceLabel{
+      font-weight: 950;
+      font-size: 12px;
+      opacity:.92;
+      letter-spacing:.3px;
+    }
+    .balanceValue{
+      font-weight: 1000;
+      font-size: 18px;
+      color: var(--yellow);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 0 rgba(0,0,0,.18);
+    }
+    .balanceAddr{
+      font-size: 11px;
+      opacity:.78;
+      max-width: 220px;
+      overflow:hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* TonConnect UI button container */
+    .tonBtn{
+      display:flex;
+      justify-content:flex-end;
+    }
+
+
     .boardShell{
       background: rgba(20,30,58,.22);
       padding: 10px;
@@ -335,6 +382,10 @@
       background: rgba(255,255,255,.08);
     }
   </style>
+
+  <!-- TON Connect UI (vanilla) -->
+  <script src="https://cdn.jsdelivr.net/npm/@tonconnect/ui@2.3.1/dist/tonconnect-ui.min.js"></script>
+
 </head>
 <body>
   <div class="wrap">
@@ -344,7 +395,14 @@
       </div>
 
       <div class="sideBtn">
-        <div class="best" title="Лучший результат">
+        
+        <div class="balanceBox" title="TON кошелек и баланс">
+          <span class="balanceLabel">Баланс:</span>
+          <span class="balanceValue" id="tonBalance">—</span>
+          <span class="balanceAddr" id="tonAddr"></span>
+          <div class="tonBtn" id="tonconnect-button"></div>
+        </div>
+<div class="best" title="Лучший результат">
           <svg class="crown" viewBox="0 0 64 64" aria-hidden="true">
             <path d="M10 22l10 10 12-18 12 18 10-10 6 28H4l6-28z" fill="#ffcf3f"/>
             <path d="M12 46h40v6H12z" fill="#e6b92f"/>
@@ -354,7 +412,7 @@
           </svg>
           <span id="bestScore">0</span>
         </div>
-        <button id="newGameBtn">Новая игра</button>
+        
       </div>
     </div>
 
@@ -363,9 +421,13 @@
         <div class="grid" id="grid"></div>
       </div>
     </div>
-
     <div class="tray" id="tray"></div>
-  </div>
+
+    <div class="bottomBar">
+      <button id="newGameBtnBottom">Новая игра</button>
+    </div>
+
+</div>
 
   <div class="dragGhost" id="ghost"></div>
   <div class="toast" id="toast"></div>
@@ -390,7 +452,11 @@
   const bestEl = document.getElementById('bestScore');
   const ghostEl = document.getElementById('ghost');
   const toastEl = document.getElementById('toast');
-  const newGameBtn = document.getElementById('newGameBtn');
+    const newGameBtn = document.getElementById('newGameBtnBottom');
+
+  const tonBalanceEl = document.getElementById('tonBalance');
+  const tonAddrEl = document.getElementById('tonAddr');
+
 
   const overlay = document.getElementById('overlay');
   const modalTitle = document.getElementById('modalTitle');
@@ -430,6 +496,44 @@
 
   let rafPending = false;
   let lastX = 0, lastY = 0;
+
+
+  function getCellFromClientXY(clientX, clientY){
+    const rect = gridEl.getBoundingClientRect();
+    if(clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return null;
+
+    const firstCell = gridEl.children[0];
+    if(!firstCell) return null;
+    const cellRect = firstCell.getBoundingClientRect();
+    const gridStyle = getComputedStyle(gridEl);
+    const gap = parseFloat(gridStyle.gap || gridStyle.columnGap || "0") || 0;
+
+    const stepX = cellRect.width + gap;
+    const stepY = cellRect.height + gap;
+
+    // position inside grid (relative)
+    const rx = clientX - rect.left;
+    const ry = clientY - rect.top;
+
+    const gx = Math.floor(rx / stepX);
+    const gy = Math.floor(ry / stepY);
+
+    if(gx < 0 || gx >= N || gy < 0 || gy >= N) return null;
+
+    return { gx, gy, cellRect, rect, gap };
+  }
+
+  function snapGhostToCell(gx, gy, grabX, grabY){
+    // place ghost so that its grabbed block aligns with the target cell center.
+    // We don't try to scale ghost to cell size; instead we hide the far offset feel by snapping ghost anchor to cell.
+    const cell = gridEl.children[gy*N + gx];
+    const r = cell.getBoundingClientRect();
+    // Put the ghost near the cell (slightly above) so it feels "on board"
+    const x = r.left + r.width/2;
+    const y = r.top + r.height/2;
+    ghostEl.style.transform = `translate(${x}px, ${y}px) translate(-50%, -50%)`;
+  }
+
 
   function setScore(v){
     score = v;
@@ -752,22 +856,6 @@
 
 
   // Ghost/probe
-  function getProbePoint(clientX, clientY){
-    if(!drag) return {x: clientX, y: clientY};
-    const dx = clientX - drag.startX;
-    const dy = clientY - drag.startY;
-    const lead = 0.22;
-
-    const css = getComputedStyle(document.documentElement);
-    const offX = parseFloat(css.getPropertyValue('--ghostOffX'));
-    const offY = parseFloat(css.getPropertyValue('--ghostOffY'));
-
-    const gx = clientX + dx*lead + offX;
-    const gy = clientY + dy*lead - offY;
-
-    return {x: gx + 14, y: gy + 14};
-  }
-  function getCellAtPoint(x,y){
     const el = document.elementFromPoint(x, y);
     if(!el) return null;
     if(el.classList?.contains('cell')) return el;
@@ -776,17 +864,13 @@
 
   function updateGhostPos(clientX, clientY){
     if(!drag) return;
-    const dx = clientX - drag.startX;
-    const dy = clientY - drag.startY;
-    const lead = 0.22;
-
-    const css = getComputedStyle(document.documentElement);
-    const offX = parseFloat(css.getPropertyValue('--ghostOffX'));
-    const offY = parseFloat(css.getPropertyValue('--ghostOffY'));
-
-    const gx = clientX + dx*lead + offX;
-    const gy = clientY + dy*lead - offY;
-    ghostEl.style.transform = `translate(${gx}px, ${gy}px)`;
+    const cellInfo = getCellFromClientXY(clientX, clientY);
+    if(cellInfo){
+      snapGhostToCell(cellInfo.gx, cellInfo.gy, drag.grabX, drag.grabY);
+    } else {
+      // follow pointer normally
+      ghostEl.style.transform = `translate(${clientX}px, ${clientY}px)`;
+    }
   }
 
   function scheduleMove(x,y){
@@ -799,12 +883,11 @@
 
       updateGhostPos(lastX, lastY);
 
-      const probe = getProbePoint(lastX, lastY);
-      const cell = getCellAtPoint(probe.x, probe.y);
+      const cellInfo = getCellFromClientXY(lastX, lastY);
 
-      if(cell){
-        const gx = Number(cell.dataset.x);
-        const gy = Number(cell.dataset.y);
+      if(cellInfo){
+        const gx = cellInfo.gx;
+        const gy = cellInfo.gy;
         const ox = gx - drag.grabX;
         const oy = gy - drag.grabY;
         if(canPlace(drag.shape, ox, oy)){
@@ -920,13 +1003,12 @@
   document.addEventListener('pointerup', (e) => {
     if(!drag) return;
 
-    const probe = getProbePoint(e.clientX, e.clientY);
-    const cell = getCellAtPoint(probe.x, probe.y);
+    const cellInfo = getCellFromClientXY(e.clientX, e.clientY);
 
     let placed = false;
-    if(cell){
-      const gx = Number(cell.dataset.x);
-      const gy = Number(cell.dataset.y);
+    if(cellInfo){
+      const gx = cellInfo.gx;
+      const gy = cellInfo.gy;
       const ox = gx - drag.grabX;
       const oy = gy - drag.grabY;
       if(canPlace(drag.shape, ox, oy)){
@@ -981,8 +1063,75 @@
     renderTray();
   }
 
+  // TON Connect (привязка кошелька) + баланс
+  // ВАЖНО: для продакшена лучше использовать свой endpoint и/или API key.
+  // Manifest должен быть доступен по HTTPS. Положи рядом файл tonconnect-manifest.json и укажи его URL.
+  const TONCONNECT_MANIFEST_URL = (location.origin + location.pathname.replace(/\/[^\/]*$/, '/') + 'tonconnect-manifest.json');
+
+  let tonConnectUI = null;
+  async function initTonConnect(){
+    if(!window.TonConnectUI){
+      tonBalanceEl.textContent = "TON недоступен";
+      return;
+    }
+    tonConnectUI = new window.TonConnectUI.TonConnectUI({
+      manifestUrl: TONCONNECT_MANIFEST_URL,
+      buttonRootId: "tonconnect-button",
+      // Если в Telegram Mini App возникают проблемы с возвратом в приложение,
+      // можно настроить return strategy в документации TonConnect UI.
+    });
+
+    // restore
+    try { await tonConnectUI.connector.restoreConnection(); } catch {}
+
+    // subscribe
+    tonConnectUI.onStatusChange(async (wallet) => {
+      if(wallet){
+        const addr = wallet.account?.address || "";
+        tonAddrEl.textContent = addr ? (addr.slice(0,6) + "…" + addr.slice(-6)) : "";
+        await refreshTonBalance(addr);
+      } else {
+        tonAddrEl.textContent = "";
+        tonBalanceEl.textContent = "—";
+      }
+    });
+
+    // initial status
+    const w = tonConnectUI.wallet;
+    if(w?.account?.address){
+      tonAddrEl.textContent = w.account.address.slice(0,6) + "…" + w.account.address.slice(-6);
+      await refreshTonBalance(w.account.address);
+    }
+  }
+
+  async function refreshTonBalance(address){
+    if(!address){
+      tonBalanceEl.textContent = "—";
+      return;
+    }
+    // Toncenter getAddressBalance (nanotons). Может требовать api_key при лимитах.
+    const url = new URL("https://toncenter.com/api/v2/getAddressBalance");
+    url.searchParams.set("address", address);
+
+    try{
+      const r = await fetch(url.toString(), { method:"GET" });
+      const j = await r.json();
+      if(j && j.ok && j.result != null){
+        const nanotons = BigInt(j.result);
+        const ton = Number(nanotons) / 1e9;
+        tonBalanceEl.textContent = (Math.floor(ton*1000)/1000).toFixed(3) + " TON";
+      } else {
+        tonBalanceEl.textContent = "нет данных";
+      }
+    } catch {
+      tonBalanceEl.textContent = "ошибка";
+    }
+  }
+
+
   // init
   buildGrid();
+  initTonConnect();
   bestEl.textContent = String(best);
   newGame();
 })();
