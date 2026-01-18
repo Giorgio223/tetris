@@ -387,7 +387,9 @@
     }
     .betField span{
       font-size:12px;
-      opacity:.85;
+      color:#fff;
+      font-weight:900;
+      opacity:1;
     }
     .betField input{
       height:42px;
@@ -462,7 +464,7 @@
         </label>
         <button class="betStart" id="btnStartGame" type="button">Запустить игру</button>
       </div>
-      <div class="betHint" id="betHint">Игра запустится после проверки баланса. Кнопка «Новая» сбросит ставку и вернёт это окно.</div>
+      <div class="betHint" id="betHint"></div>
     </div>
 <!-- Balance Modal -->
     <div class="balOverlay" id="balOverlay" aria-hidden="true">
@@ -725,6 +727,7 @@ window.addEventListener('resize', ()=>{ layout(); });
   let score = 0;
   let best = Number(localStorage.getItem('neon_bp_best') || 0);
   let combo = 0;
+  let hardMode = false;
 
   const particles = [];
   const flashes = [];
@@ -917,8 +920,37 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
     for(const c of cells){mx=Math.max(mx,c.x);my=Math.max(my,c.y);}
     return {w:mx+1,h:my+1};
   }
+  // Easy pool: очень лёгкие фигуры (0–3000 очков)
+  const EASY_SHAPES = [
+    SHAPES[0], // 1
+    SHAPES[1], // 2
+    SHAPES[2], // 3
+    SHAPES[3], // 4
+    SHAPES[4], // 3 вертикаль
+    SHAPES[5], // 4 вертикаль
+    SHAPES[6], // 2x2
+  ];
+
+  // Hard pool: большие/неудобные фигуры (после 6000 очков)
+
+  const HARD_SHAPES = [
+    SHAPES[3], // 4 в ряд
+    SHAPES[5], // 4 в столбик
+    SHAPES[7], // 2x3
+    SHAPES[8], // L
+    SHAPES[9], // L зеркальная
+    SHAPES[10], // T
+    SHAPES[11], // T вниз
+    SHAPES[12], // Z
+    SHAPES[13], // S
+  ];
+
   function newPiece(){
-    const shape = SHAPES[(Math.random()*SHAPES.length)|0];
+    let pool;
+    if(score < 3000) pool = EASY_SHAPES;
+    else if(score < 6000) pool = SHAPES;
+    else pool = HARD_SHAPES;
+    const shape = pool[(Math.random()*pool.length)|0];
     return {cells: normalize(shape), color: palette[(Math.random()*palette.length)|0], id: Math.random().toString(36).slice(2)};
   }
   function refillPieces(){ pieces = [newPiece(), newPiece(), newPiece()]; }
@@ -941,14 +973,32 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
       placed++;
       spawnDust(board.x+x*board.cell+board.cell/2, board.y+y*board.cell+board.cell/2, piece.color);
     }
-    score += placed*7 + 10;
 
     const cleared = clearLines();
     if(cleared>0){
       combo = clamp(combo+1,1,999);
       showCombo(combo);
-      score += cleared*150 + combo*35;
-    }else combo=0;
+
+      // Очки только за комбо:
+      // 1..9 комбо подряд: +100
+      // начиная с 10-го комбо подряд: +200
+      const pts = (combo >= 10) ? 200 : 100;
+      score += pts;
+      floaters.push({x:W/2,y:board.y+board.h/2,text:`+${pts}`,t:0});
+    }else{
+      combo = 0;
+    }
+
+    // Включаем "почти нереальный" режим после 6000 очков
+    if(!hardMode && score >= 6000){
+      hardMode = true;
+      floaters.push({x:W/2,y:board.y+board.h*0.35,text:'HARD MODE',t:0});
+    }
+
+    // После 6000 очков делаем игру почти нереальной: каждый ход добавляем мусорные блоки
+    if(hardMode){
+      addTrashCells(2);
+    }
 
     updateScore();
     if(!hasAnyMove()) gameOver();
@@ -984,10 +1034,34 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
         }
       }
     }
-    floaters.push({x:W/2,y:board.y+board.h/2,text:`+${(rows.length+cols.length)*200}`,t:0});
     return rows.length+cols.length;
   }
 
+
+  function addTrashCells(n=1){
+    // добавляем случайные занятые клетки, чтобы усложнить игру (hard mode)
+    for(let i=0;i<n;i++){
+      const empties=[];
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(!grid[y][x]) empties.push({x,y});
+      if(!empties.length) return;
+      const e = empties[(Math.random()*empties.length)|0];
+      grid[e.y][e.x] = palette[(Math.random()*palette.length)|0];
+    }
+  }
+
+
+  function addGarbage(count=1){
+    // добавляет случайные блоки на пустые клетки (усложняет игру)
+    for(let k=0;k<count;k++){
+      const empties=[];
+      for(let y=0;y<N;y++) for(let x=0;x<N;x++) if(!grid[y][x]) empties.push({x,y});
+      if(!empties.length) return;
+      const pick = empties[(Math.random()*empties.length)|0];
+      const col = palette[(Math.random()*palette.length)|0];
+      grid[pick.y][pick.x] = col;
+      spawnBurst(board.x+pick.x*board.cell+board.cell/2, board.y+pick.y*board.cell+board.cell/2, col, 10);
+    }
+  }
   function hasAnyMove(){
     for(const p of pieces){
       if(!p) continue;
@@ -1323,7 +1397,7 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
   }
   function reset(){
     for(let y=0;y<N;y++) for(let x=0;x<N;x++) grid[y][x]=null;
-    score=0; combo=0;
+    score=0; combo=0; hardMode=false;
     particles.length=0; flashes.length=0; floaters.length=0;
     refillPieces();
     updateScore();
@@ -1343,7 +1417,8 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
   }
 
   function getDemoBalance(){
-    return Number(localStorage.getItem('demo_balance') || '0');
+    // demo balance is mirrored in the global `balance` variable
+    return Number(balance || 0);
   }
 
   function resetToBet(){
@@ -1372,7 +1447,14 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
     }
     // OK: start
     currentBet = Math.round(v*100)/100;
-    betHintEl && (betHintEl.textContent = 'Ок! Игра запущена.');
+
+    // списываем ставку с демо-баланса
+    balance = Math.round((balance - currentBet) * 100) / 100;
+    localStorage.setItem('demo_balance', String(balance));
+    renderBalance();
+
+    // запускаем игру
+    betHintEl && (betHintEl.textContent = '');
     hideBetPanel();
     gameActive = true;
     // reset board and generate pieces for a fresh start
