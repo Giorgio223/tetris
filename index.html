@@ -434,11 +434,14 @@
       </div>
     </div>
     <div class="balanceFloat" id="balance-float">
-      <button class="balanceBtn" id="btnBalance" type="button">
-        <span class="balLabel">Баланс:</span>
-        <span class="balValue" id="balValue">0</span>
-        <span class="balPlus" aria-hidden="true">＋</span>
-      </button>
+      <div class="hudRight">
+        <button class="balanceBtn" id="btnBalance" type="button">
+          <span class="balLabel">Баланс:</span>
+          <span class="balValue" id="balValue">0</span>
+          <span class="balPlus" aria-hidden="true">＋</span>
+        </button>
+        <button class="balanceBtn" id="btnPvp" type="button">Перейти в PVP режим</button>
+      </div>
     </div>
 
     <div class="hud">
@@ -455,13 +458,13 @@
 
 
     
-    <!-- Bet / Start Panel -->
+    <!-- Start Panel (фиксированная стоимость) -->
     <div class="betPanel show" id="betPanel" aria-hidden="false">
       <div class="betRow">
-        <label class="betField">
-          <span>Размер ставки (TON)</span>
-          <input id="betAmount" inputmode="decimal" placeholder="Напр. 1.5" />
-        </label>
+        <div class="betField" style="flex:1 1 260px">
+          <span>Стоимость запуска</span>
+          <div style="height:42px;display:flex;align-items:center;padding:0 12px;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.08);font-weight:950;">0.5 TON</div>
+        </div>
         <button class="betStart" id="btnStartGame" type="button">Запустить игру</button>
       </div>
       <div class="betHint" id="betHint"></div>
@@ -507,6 +510,49 @@
       </div>
     </div>
 
+
+
+    <!-- PVP Overlay (демо без сервера: синхронизация через localStorage между вкладками) -->
+    <div class="balOverlay" id="pvpOverlay" aria-hidden="true">
+      <div class="balModal" role="dialog" aria-modal="true" aria-labelledby="pvpTitle">
+        <div class="balHead">
+          <div class="balTitle" id="pvpTitle">PVP режим</div>
+          <button class="balClose" id="pvpClose" type="button" aria-label="Закрыть">Закрыть</button>
+        </div>
+
+        <div class="balTabs" role="tablist" aria-label="PVP">
+          <button class="balTab active" id="tabPvpRooms" type="button" role="tab" aria-selected="true">Комнаты</button>
+          <button class="balTab" id="tabPvpCreate" type="button" role="tab" aria-selected="false">Создать</button>
+        </div>
+
+        <div class="balBody">
+          <div class="balPane show" id="panePvpRooms" role="tabpanel" aria-labelledby="tabPvpRooms">
+            <p class="balText" style="margin-top:0">Зайди в комнату — и нажмите «Готово» с обеих сторон, чтобы начать игру.</p>
+            <div id="pvpRoomsList" style="display:flex;flex-direction:column;gap:10px"></div>
+            <p class="balNote" style="margin-top:10px">Примечание: это демо PVP без сервера. Для теста можно открыть сайт в двух вкладках на одном домене.</p>
+          </div>
+
+          <div class="balPane" id="panePvpCreate" role="tabpanel" aria-labelledby="tabPvpCreate">
+            <p class="balText" style="margin-top:0">Создай комнату на сумму TON (ставка будет списана с баланса сразу).</p>
+            <div class="balRow">
+              <label class="balField">
+                <span>Сумма (TON)</span>
+                <input id="pvpCreateAmount" inputmode="decimal" placeholder="Напр. 1" />
+              </label>
+            </div>
+            <button class="balPrimary" id="btnPvpCreate" type="button">Создать комнату</button>
+            <p class="balNote" id="pvpCreateHint" style="margin-top:10px"></p>
+          </div>
+
+          <div class="balPane" id="panePvpWait" role="tabpanel" aria-labelledby="pvpTitle">
+            <p class="balText" style="margin-top:0;font-weight:950">Ожидание соперника<span id="pvpDots">...</span></p>
+            <p class="balText" id="pvpWaitInfo" style="opacity:.9"></p>
+            <button class="balPrimary" id="btnPvpReady" type="button" style="display:none">Готово</button>
+            <p class="balNote" id="pvpReadyHint" style="margin-top:10px"></p>
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="overlay" id="over">
       <div class="card">
         <h1>Игра окончена</h1>
@@ -652,7 +698,7 @@ function setTonBtn(text, disabled=false){
   // ===== Game config
   let gameActive = false;
   const betPanel = document.getElementById('betPanel');
-  const betAmountEl = document.getElementById('betAmount');
+  const START_BET = 0.5;
   const betHintEl = document.getElementById('betHint');
   const btnStartGame = document.getElementById('btnStartGame');
   let currentBet = 0;
@@ -727,7 +773,6 @@ window.addEventListener('resize', ()=>{ layout(); });
   let score = 0;
   let best = Number(localStorage.getItem('neon_bp_best') || 0);
   let combo = 0;
-  let hardMode = false;
 
   const particles = [];
   const flashes = [];
@@ -777,7 +822,324 @@ balOverlay?.addEventListener('click', (e)=>{ if(e.target === balOverlay) closeBa
 tabDeposit?.addEventListener('click', ()=>setTab('deposit'));
 tabWithdraw?.addEventListener('click', ()=>setTab('withdraw'));
 
-document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && balOverlay?.classList.contains('show')) closeBalance(); });
+document.addEventListener('keydown', (e)=>{
+  if(e.key === 'Escape' && balOverlay?.classList.contains('show')) closeBalance();
+  if(e.key === 'Escape' && pvpOverlay?.classList.contains('show')) closePvp();
+});
+
+
+// ===== PVP UI (демо без сервера)
+const btnPvp = document.getElementById('btnPvp');
+const pvpOverlay = document.getElementById('pvpOverlay');
+const pvpClose = document.getElementById('pvpClose');
+const tabPvpRooms = document.getElementById('tabPvpRooms');
+const tabPvpCreate = document.getElementById('tabPvpCreate');
+const panePvpRooms = document.getElementById('panePvpRooms');
+const panePvpCreate = document.getElementById('panePvpCreate');
+const panePvpWait = document.getElementById('panePvpWait');
+const pvpRoomsList = document.getElementById('pvpRoomsList');
+const pvpCreateAmount = document.getElementById('pvpCreateAmount');
+const btnPvpCreate = document.getElementById('btnPvpCreate');
+const pvpCreateHint = document.getElementById('pvpCreateHint');
+const btnPvpReady = document.getElementById('btnPvpReady');
+const pvpWaitInfo = document.getElementById('pvpWaitInfo');
+const pvpReadyHint = document.getElementById('pvpReadyHint');
+
+const PVP_KEY = 'demo_pvp_rooms_v1';
+let pvpRoomId = null;
+let pvpRole = null; // 'creator' | 'opponent'
+let dotsTimer = null;
+
+function openPvp(){
+  if(!pvpOverlay) return;
+  // default view
+  pvpRoomId = null;
+  pvpRole = null;
+  setPvpTab('rooms');
+  renderRooms();
+  pvpOverlay.classList.add('show');
+  pvpOverlay.setAttribute('aria-hidden','false');
+  setTimeout(()=>{ pvpClose?.focus?.(); }, 0);
+}
+function closePvp(){
+  if(!pvpOverlay) return;
+  stopDots();
+  pvpOverlay.classList.remove('show');
+  pvpOverlay.setAttribute('aria-hidden','true');
+  pvpCreateHint && (pvpCreateHint.textContent = '');
+  pvpReadyHint && (pvpReadyHint.textContent = '');
+}
+function setPvpTab(which){
+  const rooms = which === 'rooms';
+  const create = which === 'create';
+  const wait = which === 'wait';
+
+  tabPvpRooms?.classList.toggle('active', rooms);
+  tabPvpRooms?.setAttribute('aria-selected', rooms ? 'true':'false');
+  tabPvpCreate?.classList.toggle('active', create);
+  tabPvpCreate?.setAttribute('aria-selected', create ? 'true':'false');
+
+  panePvpRooms?.classList.toggle('show', rooms);
+  panePvpCreate?.classList.toggle('show', create);
+  panePvpWait?.classList.toggle('show', wait);
+}
+
+function loadRooms(){
+  try{
+    return JSON.parse(localStorage.getItem(PVP_KEY) || '[]') || [];
+  }catch(e){
+    return [];
+  }
+}
+function saveRooms(rooms){
+  localStorage.setItem(PVP_KEY, JSON.stringify(rooms));
+}
+function fmtTon(v){
+  const n = Math.round(v*100)/100;
+  return (Number.isInteger(n) ? String(n) : String(n).replace('.', ','));
+}
+
+function renderRooms(){
+  if(!pvpRoomsList) return;
+  const rooms = loadRooms().filter(r => r && r.status !== 'started');
+
+  if(!rooms.length){
+    pvpRoomsList.innerHTML = `<div style="opacity:.8">Комнат пока нет. Создай первую во вкладке «Создать».</div>`;
+    return;
+  }
+
+  const myAddr = tonAddress || 'no_wallet';
+
+  pvpRoomsList.innerHTML = rooms.map(r=>{
+    const isMine = r.creator === myAddr;
+    const full = !!r.opponent;
+    const status = full ? 'Соперник найден' : 'Ожидание';
+    const canJoin = !full && !isMine;
+    const btn = canJoin ? `<button class="balPrimary" data-join="${r.id}" type="button" style="margin-top:10px">Зайти</button>` : `<button class="balPrimary" type="button" data-open="${r.id}" style="margin-top:10px">Открыть</button>`;
+    return `
+      <div style="padding:12px;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.18)">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-weight:1000">Ставка: ${fmtTon(r.amount)} TON</div>
+          <div style="opacity:.85">${status}</div>
+        </div>
+        <div style="margin-top:6px;opacity:.8;font-size:12px">Создатель: ${r.creatorShort || '—'}</div>
+        ${btn}
+      </div>
+    `;
+  }).join('');
+
+  // bind buttons
+  pvpRoomsList.querySelectorAll('button[data-join]').forEach(b=>{
+    b.addEventListener('click', ()=> joinRoom(b.getAttribute('data-join')));
+  });
+  pvpRoomsList.querySelectorAll('button[data-open]').forEach(b=>{
+    b.addEventListener('click', ()=> openRoom(b.getAttribute('data-open')));
+  });
+}
+
+function openRoom(id){
+  const rooms = loadRooms();
+  const r = rooms.find(x=>x.id===id);
+  if(!r) return;
+  const myAddr = tonAddress || 'no_wallet';
+  if(r.creator === myAddr){
+    pvpRole = 'creator';
+  } else if(r.opponent === myAddr){
+    pvpRole = 'opponent';
+  } else {
+    // spectator -> treat as opponent if slot free
+    if(!r.opponent){
+      joinRoom(id);
+      return;
+    }
+    pvpRole = null;
+  }
+  pvpRoomId = id;
+  showWait(r);
+}
+
+function createRoom(){
+  if(!tonAddress){
+    pvpCreateHint && (pvpCreateHint.textContent = 'Сначала подключи кошелёк (Ton Connect Wallet).');
+    return;
+  }
+  const v = parseFloat((pvpCreateAmount?.value || '0').replace(',', '.')) || 0;
+  if(v <= 0){
+    pvpCreateHint && (pvpCreateHint.textContent = 'Введи сумму больше 0.');
+    return;
+  }
+  if(getDemoBalance() < v){
+    pvpCreateHint && (pvpCreateHint.textContent = `Недостаточно TON на балансе. Нужно: ${v}.`);
+    return;
+  }
+
+  // списываем сразу
+  balance = Math.round((balance - v) * 100) / 100;
+  localStorage.setItem('demo_balance', String(balance));
+  renderBalance();
+
+  const id = 'r_' + Math.random().toString(36).slice(2,10);
+  const room = {
+    id,
+    amount: Math.round(v*100)/100,
+    creator: tonAddress,
+    creatorShort: shortAddr(tonAddress),
+    opponent: null,
+    opponentShort: null,
+    creatorReady: false,
+    opponentReady: false,
+    status: 'waiting',
+    createdAt: Date.now()
+  };
+  const rooms = loadRooms();
+  rooms.unshift(room);
+  saveRooms(rooms);
+
+  pvpCreateHint && (pvpCreateHint.textContent = '');
+  pvpRoomId = id;
+  pvpRole = 'creator';
+  showWait(room);
+}
+
+function joinRoom(id){
+  if(!tonAddress){
+    alert('Сначала подключите TON-кошелёк.');
+    return;
+  }
+  const rooms = loadRooms();
+  const r = rooms.find(x=>x.id===id);
+  if(!r) return;
+  if(r.opponent) { openRoom(id); return; }
+
+  if(getDemoBalance() < r.amount){
+    alert('Недостаточно TON на балансе для входа в комнату.');
+    return;
+  }
+
+  // списываем сразу
+  balance = Math.round((balance - r.amount) * 100) / 100;
+  localStorage.setItem('demo_balance', String(balance));
+  renderBalance();
+
+  r.opponent = tonAddress;
+  r.opponentShort = shortAddr(tonAddress);
+  r.status = 'joined';
+  saveRooms(rooms);
+
+  pvpRoomId = id;
+  pvpRole = 'opponent';
+  showWait(r);
+}
+
+function startDots(){
+  const dotsEl = document.getElementById('pvpDots');
+  if(!dotsEl) return;
+  stopDots();
+  let n = 0;
+  dotsTimer = setInterval(()=>{
+    n = (n+1)%4;
+    dotsEl.textContent = '.'.repeat(n) || '';
+  }, 420);
+}
+function stopDots(){
+  if(dotsTimer){
+    clearInterval(dotsTimer);
+    dotsTimer = null;
+  }
+}
+
+function showWait(room){
+  setPvpTab('wait');
+  startDots();
+  updateWaitView(room);
+}
+
+function updateWaitView(room){
+  if(!room) return;
+  const full = !!room.opponent;
+  const amount = fmtTon(room.amount);
+  const mine = (pvpRole==='creator') ? 'Создатель' : (pvpRole==='opponent' ? 'Участник' : '');
+  pvpWaitInfo && (pvpWaitInfo.textContent = `${mine} • Ставка: ${amount} TON`);
+
+  // show ready only when opponent exists
+  const canReady = full && (pvpRole==='creator' || pvpRole==='opponent');
+  if(btnPvpReady){
+    btnPvpReady.style.display = canReady ? 'block' : 'none';
+  }
+
+  if(!full){
+    pvpReadyHint && (pvpReadyHint.textContent = 'Пока нет соперника. Подождите или откройте страницу во второй вкладке и зайдите в комнату.');
+    return;
+  }
+
+  const c = room.creatorReady ? '✅' : '⏳';
+  const o = room.opponentReady ? '✅' : '⏳';
+  pvpReadyHint && (pvpReadyHint.textContent = `Готовность: создатель ${c} • соперник ${o}`);
+
+  if(room.creatorReady && room.opponentReady){
+    // start game
+    tryStartPvpGame(room);
+  }
+}
+
+function setReady(){
+  if(!pvpRoomId || !pvpRole) return;
+  const rooms = loadRooms();
+  const r = rooms.find(x=>x.id===pvpRoomId);
+  if(!r) return;
+
+  if(pvpRole==='creator') r.creatorReady = true;
+  if(pvpRole==='opponent') r.opponentReady = true;
+
+  // ensure status
+  if(r.opponent) r.status = 'joined';
+  saveRooms(rooms);
+  updateWaitView(r);
+}
+
+function tryStartPvpGame(room){
+  // mark started
+  const rooms = loadRooms();
+  const r = rooms.find(x=>x.id===room.id);
+  if(r){
+    r.status = 'started';
+    saveRooms(rooms);
+  }
+
+  // Start game with bet amount
+  currentBet = room.amount;
+  hideBetPanel();
+  closePvp();
+  gameActive = true;
+  reset();
+}
+
+btnPvp?.addEventListener('click', openPvp);
+pvpClose?.addEventListener('click', closePvp);
+pvpOverlay?.addEventListener('click', (e)=>{ if(e.target === pvpOverlay) closePvp(); });
+tabPvpRooms?.addEventListener('click', ()=>{ setPvpTab('rooms'); stopDots(); renderRooms(); });
+tabPvpCreate?.addEventListener('click', ()=>{ setPvpTab('create'); stopDots(); pvpCreateHint && (pvpCreateHint.textContent=''); });
+btnPvpCreate?.addEventListener('click', createRoom);
+btnPvpReady?.addEventListener('click', setReady);
+
+// update from other tabs
+window.addEventListener('storage', (e)=>{
+  if(e.key !== PVP_KEY) return;
+  if(pvpOverlay?.classList.contains('show')){
+    if(pvpRoomId){
+      const r = loadRooms().find(x=>x.id===pvpRoomId);
+      if(r) updateWaitView(r);
+      else {
+        // room removed
+        setPvpTab('rooms');
+        stopDots();
+        renderRooms();
+      }
+    }else{
+      renderRooms();
+    }
+  }
+});
 
 // Demo handlers (optional) — so the UI "does something"
 const balValueEl = document.getElementById('balValue');
@@ -931,54 +1293,19 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
     SHAPES[6], // 2x2
   ];
 
-  // Hard pool: сложные/неудобные фигуры (6000+ очков)
-// ВАЖНО: в хард-режиме мы НЕ добавляем "мусор" на поле случайно.
-// Сложность достигается только сложными фигурами (S/Z/L/T и крупные 5-клеточные).
-  const HARD_SHAPES_EXT = [
-    // базовые сложные
-    SHAPES[7],  // 2x3
-    SHAPES[8],  // L
-    SHAPES[9],  // L зеркальная
-    SHAPES[10], // T
-    SHAPES[11], // T вниз
-    SHAPES[12], // Z
-    SHAPES[13], // S
-    SHAPES[3],  // 4 в ряд
-    SHAPES[5],  // 4 в столбик
-
-    // Увеличиваем шанс выпадения неудобных фигур, просто дублируя их
-    SHAPES[8], SHAPES[9], SHAPES[10], SHAPES[11], SHAPES[12], SHAPES[13],
-
-    // 5-клеточные (ещё сложнее)
-    // 5 в ряд
-    [{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:3,y:0},{x:4,y:0}],
-    // 5 в столбик
-    [{x:0,y:0},{x:0,y:1},{x:0,y:2},{x:0,y:3},{x:0,y:4}],
-    // Большая L (5)
-    [{x:0,y:0},{x:0,y:1},{x:0,y:2},{x:0,y:3},{x:1,y:3}],
-    // Большая L зеркальная (5)
-    [{x:1,y:0},{x:1,y:1},{x:1,y:2},{x:1,y:3},{x:0,y:3}],
-    // Большая T (5)
-    [{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:1,y:1},{x:1,y:2}],
-    // Плюс (5)
-    [{x:1,y:0},{x:0,y:1},{x:1,y:1},{x:2,y:1},{x:1,y:2}],
-    // "Ломаная" змейка (5)
-    [{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:2,y:1},{x:2,y:2}],
-  ];
-
   function newPiece(){
     let pool;
 
-    // Уровни сложности по счёту:
-    // 0–2999: лёгкий
-    // 3000–5999: нормальный
-    // 6000+: хард
-    if(score < 3000){
+    // Режимы по счёту (без HARD):
+    // 0–3500: лёгкий
+    // 5000+: нормальный
+    // 3501–4999: тоже лёгкий (как просили: норм начинается с 5000+)
+    if(score <= 3500){
       pool = EASY_SHAPES;
-    }else if(score < 6000){
-      pool = SHAPES;
+    }else if(score < 5000){
+      pool = EASY_SHAPES;
     }else{
-      pool = HARD_SHAPES_EXT;
+      pool = SHAPES;
     }
 
     const shape = pool[(Math.random()*pool.length)|0];
@@ -1022,12 +1349,6 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
       floaters.push({x:W/2,y:board.y+board.h/2,text:`+${pts}`,t:0});
     }else{
       combo = 0;
-    }
-
-    // Включаем хард-режим после 6000 очков
-    // (без надписи и без случайного "мусора" на поле)
-    if(!hardMode && score >= 6000){
-      hardMode = true;
     }
 
     updateScore();
@@ -1427,7 +1748,7 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
   }
   function reset(){
     for(let y=0;y<N;y++) for(let x=0;x<N;x++) grid[y][x]=null;
-    score=0; combo=0; hardMode=false;
+    score=0; combo=0;
     particles.length=0; flashes.length=0; floaters.length=0;
     refillPieces();
     updateScore();
@@ -1438,8 +1759,8 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
   function showBetPanel(){
     betPanel?.classList.add('show');
     betPanel?.setAttribute('aria-hidden','false');
-    if(betAmountEl) betAmountEl.value = '';
     currentBet = 0;
+    betHintEl && (betHintEl.textContent = '');
   }
   function hideBetPanel(){
     betPanel?.classList.remove('show');
@@ -1460,11 +1781,7 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
 
   // Start game with bet
   btnStartGame?.addEventListener('click', ()=>{
-    const v = parseFloat((betAmountEl?.value || '0').replace(',', '.')) || 0;
-    if(v <= 0){
-      betHintEl && (betHintEl.textContent = 'Введи сумму ставки больше 0.');
-      return;
-    }
+    const v = START_BET;
     // require wallet connection (future withdrawals go to connected address)
     if(!tonAddress){
       betHintEl && (betHintEl.textContent = 'Сначала подключи кошелёк (Ton Connect Wallet).');
@@ -1475,19 +1792,16 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
       betHintEl && (betHintEl.textContent = `Недостаточно TON на балансе. Нужно: ${v}, доступно: ${bal}. Пополни баланс во вкладке «Баланс».`);
       return;
     }
-    // OK: start
-    currentBet = Math.round(v*100)/100;
 
+    currentBet = v;
     // списываем ставку с демо-баланса
     balance = Math.round((balance - currentBet) * 100) / 100;
     localStorage.setItem('demo_balance', String(balance));
     renderBalance();
 
-    // запускаем игру
     betHintEl && (betHintEl.textContent = '');
     hideBetPanel();
     gameActive = true;
-    // reset board and generate pieces for a fresh start
     reset();
   });
 
