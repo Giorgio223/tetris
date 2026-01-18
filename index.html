@@ -333,7 +333,10 @@
 <body>
 <div class="wrap">
   <div class="ui">
-    <div class="tonFloat" id="ton-float"><div id="ton-connect"></div></div>
+    <div class="tonFloat" id="ton-float">
+      <button class="balanceBtn" id="btnTonConnect" type="button">Подключить кошелёк</button>
+      <div id="ton-connect" style="display:none"></div>
+    </div>
     <div class="balanceFloat" id="balance-float">
       <button class="balanceBtn" id="btnBalance" type="button">
         <span class="balLabel">Баланс:</span>
@@ -353,6 +356,48 @@
     <div class="combo" id="combo"><span class="word">Combo</span><span class="num" id="comboNum">2</span></div>
 
     <canvas id="c" width="720" height="820" aria-label="Neon Block Puzzle"></canvas>
+
+
+    <!-- Balance Modal -->
+    <div class="balOverlay" id="balOverlay" aria-hidden="true">
+      <div class="balModal" role="dialog" aria-modal="true" aria-labelledby="balTitle">
+        <div class="balHead">
+          <div class="balTitle" id="balTitle">Баланс</div>
+          <button class="balClose" id="balClose" type="button" aria-label="Закрыть">Закрыть</button>
+        </div>
+
+        <div class="balTabs" role="tablist" aria-label="Операции">
+          <button class="balTab active" id="tabDeposit" type="button" role="tab" aria-selected="true">Депозит</button>
+          <button class="balTab" id="tabWithdraw" type="button" role="tab" aria-selected="false">Вывод</button>
+        </div>
+
+        <div class="balBody">
+          <div class="balPane show" id="paneDeposit" role="tabpanel" aria-labelledby="tabDeposit">
+            <p class="balText">Пополнение (демо). Укажи сумму и нажми «Пополнить».</p>
+            <div class="balRow">
+              <label class="balField">
+                <span>Сумма</span>
+                <input id="depAmount" inputmode="decimal" placeholder="Напр. 10" />
+              </label>
+            </div>
+            <button class="balPrimary" id="btnDep" type="button">Пополнить</button>
+            <p class="balNote">Примечание: это заглушка интерфейса. Подключи реальную оплату/смарт-контракт в обработчике.</p>
+          </div>
+
+          <div class="balPane" id="paneWithdraw" role="tabpanel" aria-labelledby="tabWithdraw">
+            <p class="balText">Вывод (демо). Укажи сумму и нажми «Вывести». Вывод будет на подключённый адрес.</p>
+            <div class="balRow">
+              <label class="balField">
+                <span>Сумма</span>
+                <input id="wdAmount" inputmode="decimal" placeholder="Напр. 5" />
+              </label>
+            </div>
+            <button class="balPrimary" id="btnWd" type="button">Вывести</button>
+            <p class="balNote">Примечание: это заглушка интерфейса. Проверь баланс и отправляй транзакцию в обработчике.</p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <div class="overlay" id="over">
       <div class="card">
@@ -374,25 +419,81 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
-// ===== TON Connect (wallet button)
-// Manifest should be hosted at: https://<your-domain>/tonconnect-manifest.json
-// Change the URL below if you use a different domain.
-const tonConnectUI = (window.TON_CONNECT_UI && window.TON_CONNECT_UI.TonConnectUI)
-  ? new window.TON_CONNECT_UI.TonConnectUI({
-      manifestUrl: 'https://tetris-five-wine.vercel.app/tonconnect-manifest.json',
-      buttonRootId: 'ton-connect'
-    })
-  : null;
+// ===== TON Connect (wallet)
+// ВАЖНО: manifestUrl должен быть доступен по HTTPS и соответствовать домену, где размещён проект.
+// Если открыть файл напрямую (file://), TonConnect обычно зависает на загрузке.
+let tonConnectUI = null;
+let tonAddress = '';
 
-if(tonConnectUI){
+function shortAddr(a){
+  if(!a) return '';
+  return a.slice(0,4) + '…' + a.slice(-4);
+}
+
+function setTonBtn(text, disabled=false){
+  const b = document.getElementById('btnTonConnect');
+  if(!b) return;
+  b.textContent = text;
+  b.disabled = disabled;
+  b.style.opacity = disabled ? .7 : 1;
+}
+
+(function initTon(){
+  const canInit = (window.TON_CONNECT_UI && window.TON_CONNECT_UI.TonConnectUI);
+  if(!canInit){
+    setTonBtn('TonConnect не загрузился', true);
+    return;
+  }
+
+  if(location.protocol === 'file:'){
+    setTonBtn('Нужен HTTPS/хостинг', true);
+    console.warn('[TON] Открыто через file:// — размести проект на https (Vercel/Netlify) или запусти локальный сервер.');
+    return;
+  }
+
+  // по умолчанию ищем manifest рядом с приложением
+  const manifestUrl = (location.origin + '/tonconnect-manifest.json');
+
+  tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({
+    manifestUrl,
+    buttonRootId: 'ton-connect' // рендерим скрытую кнопку, сами управляем кликом
+  });
+
+  // Быстрый фидбек, чтобы кнопка не "крутилась" бесконечно
+  setTonBtn('Подключить кошелёк');
+
+  // Если восстановление соединения вдруг зависнет — не блокируем кнопку
+  Promise.race([
+    tonConnectUI.connectionRestored,
+    new Promise(res => setTimeout(res, 2500))
+  ]).finally(()=>{
+    // оставляем кнопку активной
+    if(!tonAddress) setTonBtn('Подключить кошелёк');
+  });
+
   tonConnectUI.onStatusChange(wallet => {
     if(wallet){
-      console.log('[TON] Connected:', wallet.account?.address);
-    }else{
+      tonAddress = wallet.account?.address || '';
+      console.log('[TON] Connected:', tonAddress);
+      setTonBtn('Кошелёк: ' + shortAddr(tonAddress));
+    } else {
+      tonAddress = '';
       console.log('[TON] Disconnected');
+      setTonBtn('Подключить кошелёк');
     }
   });
-}
+
+  document.getElementById('btnTonConnect')?.addEventListener('click', async ()=>{
+    if(!tonConnectUI) return;
+    try{
+      // Открываем окно TonConnect (выбор/инфо кошелька)
+      await tonConnectUI.openModal();
+    }catch(err){
+      console.error('[TON] openModal error', err);
+      setTonBtn('Ошибка TonConnect');
+    }
+  });
+})();
 
 
   // ===== Game config
@@ -487,10 +588,15 @@ const paneDeposit = document.getElementById('paneDeposit');
 const paneWithdraw = document.getElementById('paneWithdraw');
 
 function openBalance(){
+  if(!balOverlay) return;
+  setTab('deposit');
   balOverlay.classList.add('show');
   balOverlay.setAttribute('aria-hidden','false');
+  // focus for accessibility
+  setTimeout(()=>{ balClose?.focus?.(); }, 0);
 }
 function closeBalance(){
+  if(!balOverlay) return;
   balOverlay.classList.remove('show');
   balOverlay.setAttribute('aria-hidden','true');
 }
@@ -509,6 +615,47 @@ balClose?.addEventListener('click', closeBalance);
 balOverlay?.addEventListener('click', (e)=>{ if(e.target === balOverlay) closeBalance(); });
 tabDeposit?.addEventListener('click', ()=>setTab('deposit'));
 tabWithdraw?.addEventListener('click', ()=>setTab('withdraw'));
+
+document.addEventListener('keydown', (e)=>{ if(e.key === 'Escape' && balOverlay?.classList.contains('show')) closeBalance(); });
+
+// Demo handlers (optional) — so the UI "does something"
+const balValueEl = document.getElementById('balValue');
+let balance = Number(localStorage.getItem('demo_balance') || '0');
+
+function renderBalance(){
+  if(balValueEl) balValueEl.textContent = String(balance);
+}
+renderBalance();
+
+document.getElementById('btnDep')?.addEventListener('click', ()=>{
+  const v = parseFloat((document.getElementById('depAmount')?.value || '0').replace(',', '.')) || 0;
+  if(v > 0){
+    balance = Math.round((balance + v) * 100) / 100;
+    localStorage.setItem('demo_balance', String(balance));
+    renderBalance();
+    closeBalance();
+  }
+});
+
+document.getElementById('btnWd')?.addEventListener('click', ()=>{
+  if(!tonAddress){
+    alert('Сначала подключите TON-кошелёк.');
+    return;
+  }
+  const v = parseFloat((document.getElementById('wdAmount')?.value || '0').replace(',', '.')) || 0;
+  if(v <= 0) return;
+
+  // В будущем вывод будет отправляться на подключённый адрес tonAddress
+  if(balance >= v){
+    balance = Math.round((balance - v) * 100) / 100;
+    localStorage.setItem('demo_balance', String(balance));
+    renderBalance();
+    closeBalance();
+    // Здесь позже будет реальная транзакция вывода на tonAddress
+    console.log('[WD] withdraw demo to', tonAddress, 'amount', v);
+  }
+});
+
 
     const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
   const rnd=(a,b)=>a+Math.random()*(b-a);
