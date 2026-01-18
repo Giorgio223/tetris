@@ -947,8 +947,8 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
 
   function newPiece(){
     let pool;
-    if(score < 1000) pool = EASY_SHAPES;
-    else if(score < 3000) pool = SHAPES;
+    if(score < 500) pool = EASY_SHAPES;
+    else if(score < 1000) pool = SHAPES;
     else pool = HARD_SHAPES;
     const shape = pool[(Math.random()*pool.length)|0];
     return {cells: normalize(shape), color: palette[(Math.random()*palette.length)|0], id: Math.random().toString(36).slice(2)};
@@ -990,7 +990,7 @@ document.getElementById('btnWd')?.addEventListener('click', ()=>{
     }
 
     // Включаем "почти нереальный" режим после 6000 очков
-    if(!hardMode && score >= 3000){
+    if(!hardMode && score >= 1000){
       hardMode = true;
       floaters.push({x:W/2,y:board.y+board.h*0.35,text:'HARD MODE',t:0});
     }
